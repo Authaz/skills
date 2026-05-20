@@ -1,150 +1,173 @@
 ---
 name: authaz-permission-check
-description: Use when a route or operation needs an authorization check — not just "is the user signed in" but "is this user allowed to do X". Calls Authaz's `/api/v1/authz/check` (single) or `/api/v1/authz/check-bulk`. Always passes `tenant_id` in multi-tenant. Triggers on "check permission", "is allowed", "authz check", "RBAC", "Zeratul check".
+description: Use when a route or operation needs an authorization check — not just "is the user signed in" but "is this user allowed to do X". Calls the SDK's authz check method (`authaz.authz.check` in JS, `authaz.Authorization.Permissions.CheckAsync` in .NET). Always passes `tenantId` in multi-tenant. Triggers on "check permission", "is allowed", "authz check", "RBAC".
 ---
 
 # Check a permission
 
-Authaz separates **authentication** ("is this a real user") from **authorization** ("is this user allowed to do X"). Authentication lives in the JWT — Authaz signs it, your app verifies the signature. Authorization is a runtime call to Authaz, because role assignments change without re-issuing tokens.
+Authaz separates **authentication** (the JWT) from **authorization** (a runtime call). Authentication lives in the JWT — Authaz signs it, your app verifies the signature. Authorization is a runtime call to Authaz because role assignments change without re-issuing tokens.
+
+Use the SDK. **Do not call the authz endpoint with raw HTTP** — the JS SDK and the .NET SDK use different paths (`/v1/authorization/check` vs `/api/v1/authorization/explain`), and the request shapes differ.
 
 ## Step 1 — Pick the permission name
 
-Permissions are `resource:action`. Examples:
+Authaz's authz model uses `resource` + `action`. Examples:
 
-- `users:read`, `users:write`, `users:delete`
-- `invoices:create`, `invoices:read`, `invoices:approve`
-- `settings:update`
+- `resource: "users", action: "read"`
+- `resource: "invoices", action: "create"`
+- `resource: "settings", action: "update"`
 
-Decide the names up-front; they're cheap to add but expensive to rename. Keep the resource singular when possible (`invoice:approve`) for consistency, or plural — just pick one and stay with it.
+The JS SDK splits them into separate fields. The .NET SDK takes a colon-joined `permission` string (e.g., `"invoices:approve"`). Same operation, different surface shape.
 
-If the permission doesn't exist yet, define it in the Dashboard (Authorization → Permissions) or via:
+Keep the resource singular when possible (`invoice:approve`) for consistency, or plural — just pick one and stay with it.
 
-```http
-POST https://api.authaz.io/api/v1/permissions
-X-API-Key: sk_live_…
+## Step 2 — Set up the SDK
 
-{ "name": "invoices:approve", "description": "Approve a posted invoice" }
-```
+If you already have `Authaz.Sdk` / `@authaz/sdk` wired up via `authaz-management-api`, skip this step.
 
-Then attach it to a role:
-
-```http
-POST https://api.authaz.io/api/v1/roles/{roleId}/permissions
-X-API-Key: sk_live_…
-
-{ "permissions": ["invoices:approve"] }
-```
-
-## Step 2 — Call the check from your backend
-
-The check is a server-side call. Don't do it from the browser — the API key would leak.
-
-### Single check
-
-```http
-POST https://api.authaz.io/api/v1/authz/check
-X-API-Key: sk_live_…   (or Authorization: Bearer <user access token>)
-Content-Type: application/json
-
-{
-  "user_id": "user_01abc…",
-  "permission": "invoices:approve",
-  "tenant_id": "tenant_01xyz…"
-}
-```
-
-Response:
-
-```json
-{ "allowed": true, "reason": "role:approver in tenant_01xyz" }
-```
-
-`tenant_id` is **required for multi-tenant apps**. Omitting it falls back to a global scope and almost always returns `false` — or worse, returns `true` for a permission the user has in another tenant.
-
-### Bulk check (preferred when you'll check multiple in one request)
-
-```http
-POST https://api.authaz.io/api/v1/authz/check-bulk
-X-API-Key: sk_live_…
-
-{
-  "user_id": "user_01abc…",
-  "tenant_id": "tenant_01xyz…",
-  "permissions": ["invoices:read", "invoices:approve", "invoices:delete"]
-}
-```
-
-Response:
-
-```json
-{ "results": [
-  { "permission": "invoices:read", "allowed": true },
-  { "permission": "invoices:approve", "allowed": true },
-  { "permission": "invoices:delete", "allowed": false }
-] }
-```
-
-Cheaper than three single calls and the latency is sub-millisecond on the Authaz side.
-
-## Step 3 — Wire it into your code
-
-### Hono / Node
-
-```ts
-async function canApprove(userId: string, tenantId: string) {
-  const r = await fetch("https://api.authaz.io/api/v1/authz/check", {
-    method: "POST",
-    headers: {
-      "X-API-Key": process.env.AUTHAZ_API_KEY!,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      user_id: userId, permission: "invoices:approve", tenant_id: tenantId,
-    }),
-  }).then(r => r.json() as Promise<{ allowed: boolean }>);
-  return r.allowed;
-}
-```
-
-Always pull `userId` from `claims.sub` and `tenantId` from `claims.tenant_id` — not from request bodies, query strings, or headers.
-
-### .NET (`Authaz.Sdk`)
+### .NET
 
 ```csharp
-var check = await _authaz.PermissionCheck.CheckAsync(new()
+builder.Services.AddAuthazSdk(opts =>
 {
-    UserId = User.FindFirst("sub")!.Value,
-    Permission = "invoices:approve",
-    TenantId = User.FindFirst("tenant_id")?.Value,
+    opts.BaseAddress = new Uri("https://api.authaz.io");
+    opts.ApiKey      = builder.Configuration["Authaz:ApiKey"];
 });
-
-if (check.IsError || !check.Value.Allowed)
-    return ResultsExt.Forbidden(); // or Results.Forbid() in vanilla apps
 ```
 
-The SDK returns `AuthazResult<T>` — check `IsError` before reading `Value`.
+### JavaScript
 
-### Caching
+```ts
+import { createAuthazClient } from "@authaz/sdk";
 
-The check is fast but not free. For hot paths, cache the result for the lifetime of the request (request-scoped) — never longer. Caching across requests means a role revocation takes time to propagate, which is usually a security bug.
+const authaz = createAuthazClient({
+  clientId: process.env.AUTHAZ_CLIENT_ID!,
+  clientSecret: process.env.AUTHAZ_CLIENT_SECRET!,
+  organizationId: process.env.AUTHAZ_ORGANIZATION_ID!,
+  apiKey: process.env.AUTHAZ_API_KEY, // optional; falls back to clientSecret
+});
+```
 
-## Step 4 — Verify
+## Step 3 — Call check from the backend
+
+The check is server-side. **Never** call it from the browser — the API key would leak.
+
+### JS — single check
+
+```ts
+const result = await authaz.authz.check({
+  userId: "user_01abc...",       // or `token: accessToken`
+  resource: "invoices",
+  action: "approve",
+  tenantId: "ten_01xyz...",      // required for multi-tenant
+});
+
+// result is Result<CheckResult>
+if (result.ok && result.value.allowed) {
+  // permitted
+}
+```
+
+`CheckResult` shape:
+
+```ts
+type CheckResult = {
+  allowed: boolean;
+  viaDirectGrant?: boolean;
+  viaRole?: boolean;
+};
+```
+
+### JS — bulk check (preferred when checking multiple at once)
+
+```ts
+const result = await authaz.authz.checkBulk({
+  userId: "user_01abc...",
+  tenantId: "ten_01xyz...",
+  checks: [
+    { permission: "invoices:read", action: "read" },
+    { permission: "invoices:approve", action: "approve" },
+    { permission: "invoices:delete", action: "delete" },
+  ],
+});
+
+// result.value.results: { permission: string; allowed: boolean }[]
+```
+
+Cheaper than three single calls — one round-trip instead of three.
+
+### JS — convenience helper for token-mode
+
+If you have the user's access token (e.g., from the OIDC session), the SDK exposes a `can()` shorthand:
+
+```ts
+const allowed: boolean = await authaz.authz.can(
+  accessToken,
+  "invoices",
+  "approve",
+  tenantId
+);
+```
+
+This wraps `check` and returns the boolean directly (errors collapse to `false`). Use it in hot paths where you don't need the trace.
+
+### .NET — single check
+
+```csharp
+var check = await authaz.Authorization.Permissions.CheckAsync(
+    new CheckPermissionRequest(
+        UserId:     User.FindFirst("sub")!.Value,
+        Permission: "invoices:approve",
+        TenantId:   User.FindFirst("tenant_id")?.Value));
+
+if (!check.IsSuccess || !check.Value!.Allowed)
+    return Results.Forbid();
+```
+
+The .NET response shape includes a full audit trace (`RoleTrace`, `PolicyTrace`) — useful for debugging "why isn't this allowed".
+
+## Step 4 — Always pull subject + tenant from the token
+
+```ts
+// Get subject/tenant from token claims, NEVER from request input
+const userId  = decodedToken.sub;
+const tenant  = decodedToken.tenant_id;
+const allowed = await authaz.authz.can(accessToken, "invoices", "approve", tenant);
+```
+
+```csharp
+var userId   = User.FindFirst("sub")!.Value;
+var tenantId = User.FindFirst("tenant_id")?.Value;
+```
+
+**Don't** pull either from query strings, headers, or request bodies. The token is the source of truth.
+
+## Step 5 — Caching
+
+The check is fast but not free. For hot paths, cache the result for the **lifetime of the request** (request-scoped) — never longer. Caching across requests means a role revocation takes time to propagate, which is usually a security bug.
+
+## Step 6 — Verify
 
 1. Assign the user the role that has the permission. Call the check → `allowed: true`.
-2. Revoke the role assignment (Dashboard → User → Remove role). Call the check → `allowed: false`. **Within seconds**, not next-token.
-3. In multi-tenant: assign in tenant A, check in tenant B — should be `false`. This proves you're passing `tenant_id` correctly.
+2. Revoke the role assignment (Dashboard → User → Remove role). Call the check → `allowed: false` **within seconds**, not next-token.
+3. In multi-tenant: assign in tenant A, check in tenant B — should be `false`. This proves you're passing `tenantId` correctly.
 
 ## Anti-patterns
 
-- **Don't read `roles` from the JWT and skip the check.** Roles in the JWT are a snapshot at login time. Authoritative authorization is the API call.
-- **Don't put permission names in code as magic strings everywhere.** Put them in one constants module so renames are a single edit.
-- **Don't omit `tenant_id` in multi-tenant.** Every. Time.
-- **Don't use the user's own access token to call `/authz/check`** unless your security model has been reviewed for the implications — typically use the application's API key.
-- **Don't wrap the check in `try/catch` and default to `allowed: true` on error.** Default to `false` — fail closed.
+- **Don't read `roles` from the JWT and skip the check.** Roles in the JWT are a snapshot at login time. Authoritative authorization is the SDK call.
+- **Don't put permission names in code as scattered magic strings.** Centralize them so renames are a single edit.
+- **Don't omit `tenantId` in multi-tenant.** Every. Time.
+- **Don't catch SDK errors and default to `allowed: true`.** Default to `false` — fail closed.
+- **Don't call the authz endpoint with raw HTTP.** The JS and .NET SDKs disagree on the path; use SDK methods.
+
+## Source of truth
+
+- JS SDK authz: `authaz-sdk-js/packages/core/src/authz/permissions.ts`
+- JS authz types: `authaz-sdk-js/packages/core/src/authz/types.ts`
+- .NET SDK authz: `authaz-sdk-dotnet/Authaz.Sdk/src/Resources/Authorization/Permissions/`
 
 ## References
 
-- Authorization overview: <https://authaz.io/docs/authorization/overview>
-- `references/endpoints.md` — `/api/v1/authz/check` and bulk variant
-- `references/error-codes.md` — 403 `cross_tenant_access` etc.
 - `authaz-multi-tenant` — tenant resolution and isolation
+- `authaz-management-api` — wider SDK surface
+- `references/error-codes.md` — `Forbidden`, `Unauthorized`, etc.

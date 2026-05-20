@@ -59,14 +59,14 @@ OAuth 2 client credentials grant. A backend service authenticates as itself (not
 
 ## Authaz Sign-In
 
-The hosted login UI at your identity domain (e.g., `auth.your-app.com` for a custom domain, or the default subdomain Authaz issued you). The only Authaz screen end users see. Handles the entire OAuth 2.1 + PKCE flow: provider selection, password / social / magic-link, MFA, tenant picker, account recovery.
+The hosted login UI at the identity domain — `https://auth.authaz.io` by default (or a custom domain like `auth.your-app.com` if configured). The only Authaz screen end users see. Handles the entire OAuth 2.1 + PKCE flow: provider selection, password / social / magic-link, MFA, account recovery.
 
 You don't build this — you redirect to it.
 
 ## Management API vs auth flow
 
-- **Auth flow** = `https://<your-identity-domain>/...` (e.g., `https://auth.your-app.com/...`) — what end users hit (browser redirects, OAuth, JWKS).
-- **Management API** = `https://api.authaz.io/...` (hosted) — what your backend hits (create users, assign roles, check permissions).
+- **Auth flow** = `https://auth.authaz.io/...` (default) — what end users hit (browser redirects, OAuth, JWKS).
+- **Management API** = `https://api.authaz.io/...` (default) — what your backend hits (create users, assign roles, check permissions).
 
 Different hostnames, different auth (cookies vs API key), different audiences. Don't confuse them.
 

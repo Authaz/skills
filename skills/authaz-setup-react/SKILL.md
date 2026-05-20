@@ -1,86 +1,307 @@
 ---
 name: authaz-setup-react
-description: Use when adding Authaz to a React single-page app (Vite, CRA, or similar). Wires `@authaz/react`'s `AuthazProvider`, `useUser`, `useRequireUser`. Requires a paired backend that runs the Authaz handler — usually the Hono backend. Triggers on "add Authaz to React", "@authaz/react", "useUser hook", "React SPA login".
+description: Use when adding Authaz to a React SPA (Vite + TanStack Router). Single-shot — writes the provider, callback route, and protected route guards using `@authaz/react`. Requires a paired backend running the Authaz handler. Triggers on "add Authaz to React", "@authaz/react", "React SPA login".
 ---
 
-# Set up Authaz in a React SPA
+# Set up Authaz in a React SPA — single shot
 
-The React SDK is **client-side only**. It cannot complete the OAuth flow on its own — it talks to a backend that runs `createAuthazHandler` (Hono, Next.js API route, or any other Node/Bun server). Don't try to make the SPA hold the `client_secret`.
+Use this skill when the user wants Authaz wired into a Vite + React SPA in one pass. Code is taken verbatim from `authaz-sdk-js/examples/react-hono/src/`.
 
-## Pre-flight
+The SPA is **client-side only**. It needs a backend running the Authaz handler at `/api/auth/*`. The example pairs with a Hono server — same repo.
 
-1. **Confirm a backend exists** that runs the Authaz handler at `/api/auth/*`. If not, pause this skill, run `authaz-setup-hono` first, then come back.
-2. **Confirm bundler.** Vite is the recipe-supported path; CRA / Webpack work but the proxy config differs.
-3. **Confirm tenancy mode** (from `authaz-quickstart` if available).
+If no backend exists yet, **stop and run `authaz-setup-hono` first**, then return here. The SPA's `AuthazProvider` reads from `/api/auth/me` — without the backend it has nothing to talk to.
 
-## Step 1 — Application setup
+## What the user must provide before you start
 
-Already done if the paired backend was set up. The same `client_id` is reused — there is **one application**, not one per layer.
+Nothing on the SPA side — the SPA reads no Authaz env vars. The backend holds the secret. Make sure:
 
-The redirect URI for the SPA must be added to the application's allowed callback URLs (e.g., `http://localhost:5173/auth/callback` for Vite).
+1. The Hono (or other) backend is running on a known port (the example uses `:3000`).
+2. The Vite dev server's callback URL is added to **Allowed callback URLs** in the Authaz Dashboard: `http://localhost:5173/auth/callback`.
 
-## Step 2 — Install
+If the user is on Webpack/CRA instead of Vite, this skill still applies — only the proxy/build config differs. The example assumes Vite.
+
+## Step 1 — Install
 
 ```bash
-pnpm add react react-dom @authaz/react @authaz/sdk react-router-dom
-pnpm add -D vite @vitejs/plugin-react
+pnpm add react react-dom @authaz/react @tanstack/react-router
+pnpm add -D vite @vitejs/plugin-react @tanstack/router-plugin tailwindcss @tailwindcss/vite typescript @types/react @types/react-dom
 ```
 
-## Step 3 — Configure
+If the project isn't using TanStack Router, the auth pieces still work — only the route files change. The example uses TanStack Router; React Router DOM works just as well, but adapt the routing snippets below.
 
-The SPA reads **no Authaz env vars** — it gets everything from the backend via `/api/auth/me`. The backend keeps the secret.
+## Step 2 — `vite.config.ts`
 
-Configure the dev proxy so the cookie flows from the SPA's origin to the backend's. `vite.config.ts`:
+The dev proxy is what lets the SPA call `/api/auth/*` without CORS. Adjust the proxy target to wherever your backend is running.
 
-```typescript
+```ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 
 export default defineConfig({
-  plugins: [react()],
-  server: { proxy: { "/api/auth": "http://localhost:3000" } },
+  plugins: [TanStackRouterVite(), react(), tailwindcss()],
+  server: {
+    port: 5173,
+    proxy: {
+      "/api": {
+        target: "http://localhost:3000",
+        changeOrigin: true,
+      },
+    },
+  },
 });
 ```
 
-In production, deploy the SPA and the backend behind the same origin (or set CORS with credentials, but same-origin is simpler).
+Drop `tailwindcss()` if the project isn't using Tailwind. Drop `TanStackRouterVite()` if using a different router.
 
-## Step 4 — Wire it up
+## Step 3 — `index.html`
 
-Recipe:
+```html
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Authaz React App</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+```
 
-- **Single-tenant**: <https://authaz.io/docs/recipes/react-single-tenant>
-- **Multi-tenant**: <https://authaz.io/docs/recipes/react-multi-tenant>
+## Step 4 — Write the source files
 
-The shape:
+### `src/main.tsx`
 
-1. **`AuthazProvider`** at the root of the tree: `<AuthazProvider basePath="/api/auth">`. Wraps your router.
-2. **`/auth/callback` route** is a tiny component that POSTs the OAuth code into `/api/auth/callback` (same bridge as the Next.js recipe). Copy from the recipe.
-3. **`useUser()`** in any component — returns `{ user, isLoading, isSignedIn }`.
-4. **`useRequireUser()`** in protected pages — redirects to login if signed-out.
-5. **`<SignInButton>` / `<SignOutButton>`** — convenience components that hit the right endpoints.
-6. **For multi-tenant**, `useUser()` exposes `user.tenantId` — use it to scope your data fetches (`/api/invoices?...` becomes `/api/invoices?tenantId=${user.tenantId}` *only if* your backend re-validates from the JWT, never from the query).
+```tsx
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { RouterProvider, createRouter } from "@tanstack/react-router";
+import { routeTree } from "./routeTree.gen";
+import "./index.css";
 
-## Step 5 — Verify
+const router = createRouter({ routeTree });
 
-Run the backend (e.g., `pnpm tsx src/index.ts` on port 3000) and the SPA (`pnpm dev` on port 5173) at the same time.
+declare module "@tanstack/react-router" {
+  interface Register {
+    router: typeof router;
+  }
+}
 
-1. Visit `http://localhost:5173` — public, no redirect.
-2. Click **Sign in** — bounces to Authaz Sign-In.
-3. After login, lands back on `/dashboard` showing the user's email.
-4. Click **Sign out** — clears session, returns to `/`.
-5. For multi-tenant: confirm `useUser().user.tenantId` is set in the React DevTools.
+const rootElement = document.getElementById("root")!;
 
-## Anti-patterns
+createRoot(rootElement).render(
+  <StrictMode>
+    <RouterProvider router={router} />
+  </StrictMode>
+);
+```
 
-- **Never put `client_secret` in the SPA bundle.** It's a public bundle. The backend holds the secret.
-- **Don't use `localStorage` for tokens.** The cookie is HttpOnly; that's a feature, not a limitation.
-- **Don't fetch protected APIs without `credentials: "include"`** — without it, the cookie won't be sent.
-- **Don't gate routes with `useRequireUser` and *also* re-fetch the user inside the route.** It's already cached in the provider.
-- **Don't build your own tenant picker.** Authaz Sign-In has one; let it run.
+`routeTree.gen.ts` is auto-generated by `@tanstack/router-plugin/vite` — don't write it by hand. Vite generates it on first start.
+
+### `src/routes/__root.tsx`
+
+```tsx
+import { createRootRoute, Outlet } from "@tanstack/react-router";
+import { AuthazProvider } from "@authaz/react";
+import { Navbar } from "../components/Navbar";
+
+export const Route = createRootRoute({
+  component: RootComponent,
+});
+
+function RootComponent(): React.ReactNode {
+  return (
+    <AuthazProvider basePath="/api/auth" autoRefresh={true}>
+      <div className="min-h-screen bg-gray-50 text-gray-900 antialiased">
+        <Navbar />
+        <Outlet />
+      </div>
+    </AuthazProvider>
+  );
+}
+```
+
+`basePath="/api/auth"` matches the mount in the backend. `autoRefresh={true}` makes the SDK refresh the access token automatically before expiry.
+
+### `src/routes/index.tsx` — home page
+
+```tsx
+import { createFileRoute } from "@tanstack/react-router";
+
+export const Route = createFileRoute("/")({
+  component: HomePage,
+});
+
+function HomePage(): React.ReactNode {
+  return (
+    <main className="max-w-7xl mx-auto px-4 py-12 text-center">
+      <h1 className="text-4xl font-bold">My App</h1>
+      <a
+        href="/api/auth/login"
+        className="mt-8 inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg text-lg"
+      >
+        Get Started
+      </a>
+    </main>
+  );
+}
+```
+
+Anchor `href="/api/auth/login"` is the simplest way to start the flow. Inside components, you can also call `const { login } = useAuthaz(); login();`.
+
+### `src/routes/auth/callback.tsx` — the OAuth bridge
+
+```tsx
+import { createFileRoute } from "@tanstack/react-router";
+import { useEffect } from "react";
+
+export const Route = createFileRoute("/auth/callback")({
+  component: CallbackPage,
+});
+
+function CallbackPage(): React.ReactNode {
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "/api/auth/callback";
+
+    const paramNames = ["code", "state", "error", "error_description"];
+    paramNames.forEach((param) => {
+      const value = params.get(param);
+      if (value) {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = param;
+        input.value = value;
+        form.appendChild(input);
+      }
+    });
+
+    document.body.appendChild(form);
+    form.submit();
+  }, []);
+
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent" />
+        <p className="mt-4 text-gray-600">Completing login...</p>
+      </div>
+    </div>
+  );
+}
+```
+
+Authaz redirects the browser here with `?code=...&state=...`. The component POSTs those into the backend's `/api/auth/callback`, which is where the token exchange and cookie set happen.
+
+### `src/routes/dashboard.tsx` — a protected route
+
+```tsx
+import { createFileRoute, redirect } from "@tanstack/react-router";
+
+export const Route = createFileRoute("/dashboard")({
+  beforeLoad: async () => {
+    const response = await fetch("/api/auth/me", { credentials: "include" });
+    if (!response.ok) {
+      throw redirect({ to: "/api/auth/login" });
+    }
+  },
+  component: DashboardPage,
+});
+
+function DashboardPage(): React.ReactNode {
+  return (
+    <main className="max-w-7xl mx-auto px-4 py-12">
+      <h1 className="text-3xl font-bold">Dashboard</h1>
+      <p>You are signed in.</p>
+    </main>
+  );
+}
+```
+
+`beforeLoad` runs before rendering; if the user isn't signed in, it redirects them through the login flow. Use the same pattern for every protected route.
+
+### `src/components/Navbar.tsx`
+
+```tsx
+import { Link } from "@tanstack/react-router";
+import { useAuthaz } from "@authaz/react";
+
+export const Navbar = (): React.ReactNode => {
+  const { isAuthenticated, isLoading, user, login, logout } = useAuthaz();
+
+  return (
+    <nav className="bg-white shadow-sm border-b border-gray-200">
+      <div className="max-w-7xl mx-auto px-4 flex justify-between h-16 items-center">
+        <Link to="/" className="text-xl font-semibold">My App</Link>
+        {isLoading ? null : isAuthenticated ? (
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-600">{user?.email}</span>
+            <button onClick={() => logout()} className="px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200">
+              Logout
+            </button>
+          </div>
+        ) : (
+          <button onClick={() => login()} className="px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700">
+            Login
+          </button>
+        )}
+      </div>
+    </nav>
+  );
+};
+```
+
+### `src/index.css`
+
+```css
+@import "tailwindcss";
+```
+
+(Skip if not using Tailwind.)
+
+## Step 5 — Run and verify
+
+Start the backend (port 3000) and the SPA (port 5173) at the same time. With the example's setup, that's `pnpm dev` which uses `concurrently`. Otherwise run them in two terminals.
+
+1. Open `http://localhost:5173` — the home page loads with a **Login** button (Navbar) and a **Get Started** link.
+2. Click either → bounces through `http://localhost:3000/api/auth/login` → `https://auth.authaz.io/...` → back to `http://localhost:5173/auth/callback` → on to `/dashboard`.
+3. `/dashboard` renders, signed in.
+4. Click **Logout** → cleared, returns to `/`.
+
+If `/dashboard` flashes the redirect before settling, the `beforeLoad` is doing its job — adjust UX in the home page if needed.
+
+## When something fails
+
+1. **`useAuthaz is undefined` or `AuthazProvider missing`** — components must be inside `<AuthazProvider>`. With TanStack Router, that means `__root.tsx` must wrap everything; protected routes are children, not siblings.
+2. **`/api/auth/login` returns 404** — Vite proxy isn't picking up the call, OR the backend isn't running on the expected port. Verify both: visit `http://localhost:3000/api/auth/login` directly; it should redirect to Authaz.
+3. **Cookies not flowing** — every fetch to the backend needs `credentials: "include"`. The example's `beforeLoad` includes it; replicate in every protected-route check.
+4. **`invalid_redirect_uri` on the Authaz page** — the application's allowed-callback list is missing `http://localhost:5173/auth/callback` (note the *SPA*'s port, not the backend's).
+5. **`routeTree.gen.ts` is missing** — TanStack Router's plugin generates it on Vite start. Run `pnpm dev` once; if it still doesn't appear, ensure `TanStackRouterVite()` is in `vite.config.ts`.
+
+For other failures hand off to `authaz-troubleshoot-oauth`.
+
+## Hard rules — do not violate
+
+- **Never put any Authaz secret in the SPA bundle.** The SPA reads no Authaz env vars — that's the design.
+- **Always `credentials: "include"`** on fetches to `/api/auth/*` and any protected route. Without it the session cookie isn't sent.
+- **Don't store tokens in `localStorage`.** The cookie is HttpOnly; the SDK manages refresh.
+- **Don't build your own callback handler.** The bridge in `src/routes/auth/callback.tsx` is exact — copy it.
+- **Don't render a tenant picker.** Authaz Sign-In handles tenant selection inside the hosted flow.
+
+## Source of truth
+
+The code above is lifted from `authaz-sdk-js/examples/react-hono/src/`. The corresponding backend is in `server/` — see `authaz-setup-hono`.
 
 ## References
 
-- Recipe (single-tenant): <https://authaz.io/docs/recipes/react-single-tenant>
-- Recipe (multi-tenant): <https://authaz.io/docs/recipes/react-multi-tenant>
-- `authaz-setup-hono` — the usual paired backend
-- `authaz-protect-route`, `authaz-multi-tenant`
+- Real example: `authaz-sdk-js/examples/react-hono/`
+- SDK source: `authaz-sdk-js/packages/react/src/`
+- `authaz-setup-hono` — paired backend
+- `authaz-troubleshoot-oauth` — failure diagnostics
+- `authaz-multi-tenant`, `authaz-permission-check`

@@ -7,7 +7,7 @@ description: Use when an Authaz OAuth flow is broken — redirect_uri mismatch, 
 
 When login is broken, the symptom usually points straight at the cause. Don't guess — match the exact error to the table below.
 
-> In the URLs below, `auth.example.com` is a placeholder for **your** identity domain (from the Authaz Dashboard). Substitute it before running commands.
+> URLs below use `auth.authaz.io` — the hosted Authaz default. If the customer set up a custom identity domain (e.g., `auth.your-app.com`), substitute it.
 
 ## Step 1 — Identify where the flow is failing
 
@@ -49,7 +49,7 @@ Wrong `client_id`, wrong `client_secret`, or the secret was rotated. Check `apps
 
 The token was signed with a key your verifier hasn't fetched, or it has fetched and cached the wrong app's JWKS.
 
-- Confirm the JWKS URL: `https://auth.example.com/universal/.well-known/jwks/{client_id}.json`. Note the `client_id` is in the path — using the global `/.well-known/jwks.json` from another platform's docs gives you the wrong keys.
+- Confirm the JWKS URL: `https://auth.authaz.io/universal/.well-known/jwks/{client_id}.json`. Note the `client_id` is in the path — using the global `/.well-known/jwks.json` from another platform's docs gives you the wrong keys.
 - If you cache JWKS, set the cache TTL to no more than 1 hour and refetch on `kid` miss.
 - If a key was just rotated, force a refetch.
 
@@ -86,13 +86,13 @@ If the SDK output is opaque, hit the OAuth endpoints directly:
 CV=$(openssl rand -base64 32 | tr -d '=' | tr '/+' '_-')
 CC=$(printf "%s" "$CV" | openssl dgst -sha256 -binary | openssl base64 | tr -d '=' | tr '/+' '_-')
 
-open "https://auth.example.com/universal/oauth2/authorize?client_id=app_01abc&response_type=code&scope=openid&redirect_uri=http://localhost:3000/auth/callback&state=abc&code_challenge=$CC&code_challenge_method=S256"
+open "https://auth.authaz.io/universal/oauth2/authorize?client_id=app_01abc&response_type=code&scope=openid&redirect_uri=http://localhost:3000/auth/callback&state=abc&code_challenge=$CC&code_challenge_method=S256"
 ```
 
 After Authaz redirects with `?code=...`:
 
 ```bash
-curl -X POST https://auth.example.com/universal/oauth2/token \
+curl -X POST https://auth.authaz.io/universal/oauth2/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=authorization_code" \
   -d "code=THE_CODE_FROM_REDIRECT" \

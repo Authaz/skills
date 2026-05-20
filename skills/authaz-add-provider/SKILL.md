@@ -25,12 +25,12 @@ If the user asks for `passkey` or `saml`, say it's not yet shipping and offer th
 
 ## Step 2 — Get IdP credentials (for social providers)
 
-Each social provider has its own developer console flow. The Authaz-side callback always lives at `https://<your-identity-domain>/universal/oauth/callback/{provider}` — substitute your identity domain (from the Authaz Dashboard) before pasting into the IdP console. Below, `auth.example.com` is a placeholder for your domain.
+Each social provider has its own developer console flow. The Authaz-side callback lives at `https://auth.authaz.io/universal/oauth/callback/{provider}` (or your custom identity domain if configured).
 
-- **Google**: GCP → APIs & Services → Credentials → "OAuth 2.0 Client ID". Authorized redirect URI: `https://auth.example.com/universal/oauth/callback/google`.
-- **Microsoft**: Azure Portal → Microsoft Entra ID → App registrations → Authentication → add `https://auth.example.com/universal/oauth/callback/microsoft` as a redirect URI.
-- **Apple**: Apple Developer → Certificates, Identifiers & Profiles → Service ID → enable "Sign in with Apple" → return URL `https://auth.example.com/universal/oauth/callback/apple`. You upload a `.p8` private key, not a secret.
-- **GitHub**: GitHub → Settings → Developer settings → OAuth Apps → callback URL `https://auth.example.com/universal/oauth/callback/github`.
+- **Google**: GCP → APIs & Services → Credentials → "OAuth 2.0 Client ID". Authorized redirect URI: `https://auth.authaz.io/universal/oauth/callback/google`.
+- **Microsoft**: Azure Portal → Microsoft Entra ID → App registrations → Authentication → add `https://auth.authaz.io/universal/oauth/callback/microsoft` as a redirect URI.
+- **Apple**: Apple Developer → Certificates, Identifiers & Profiles → Service ID → enable "Sign in with Apple" → return URL `https://auth.authaz.io/universal/oauth/callback/apple`. You upload a `.p8` private key, not a secret.
+- **GitHub**: GitHub → Settings → Developer settings → OAuth Apps → callback URL `https://auth.authaz.io/universal/oauth/callback/github`.
 
 The exact callback path on the Authaz side is fixed — don't paraphrase it. Verify against `references/endpoints.md` if unsure.
 
@@ -99,7 +99,7 @@ Or apply YAML — see `authaz-cli-yaml`.
 For M2M: hit the token endpoint with the issued credentials:
 
 ```bash
-curl -X POST https://auth.example.com/universal/oauth2/token \
+curl -X POST https://auth.authaz.io/universal/oauth2/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=client_credentials" \
   -d "client_id=…" -d "client_secret=…" -d "scope=events:write"

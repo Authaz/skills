@@ -19,65 +19,61 @@ A common mistake: gating a page with only a `useRequireUser` hook in React. That
 
 ## Step 2 — Apply the framework primitive
 
-### Next.js (App Router)
-
-Add the path to the middleware matcher (already configured by `authaz-setup-nextjs`). For finer control, use `requireUser` inside the page:
+### Next.js (App Router) — client component
 
 ```tsx
-// app/admin/page.tsx
-import { requireUser } from "@authaz/next";
+"use client";
+import { useRequireAuth, useAuthaz } from "@authaz/react";
 
-const user = requireUser({
-  authazDomain: process.env.AUTHAZ_IDENTITY_DOMAIN,
-  clientSecret: process.env.AUTHAZ_CLIENT_SECRET,
-});
-
-export default async function Admin() {
-  const me = await user.getOrRedirect();
-  return <main>Hi {me.email}</main>;
+export default function AdminPage() {
+  useRequireAuth();
+  const { user } = useAuthaz();
+  return <h1>Admin — {user?.email}</h1>;
 }
 ```
 
-For an API route, wrap the handler with `withAuth`:
+`useRequireAuth()` redirects unauthenticated visitors through `/api/auth/login`.
 
-```ts
-// app/api/admin/route.ts
-import { withAuth } from "@authaz/next";
-
-export const POST = withAuth(async (req) => {
-  // req.user is populated; if not signed in, withAuth returned 401 already
-  return Response.json({ ok: true });
-});
-```
+For server-side checks (route handlers), call the handler's `/api/auth/me` from the request to confirm the session, or read the session cookie via `next/headers` and decode the access token. Don't expect a `requireUser` helper in `@authaz/next` — there isn't a stable one beyond the React hooks.
 
 ### Hono
 
-Either rely on the global middleware from `authaz-setup-hono` (and add the path *outside* `publicPaths`), or check inline:
+The handler already exposes `/api/auth/me`. Use that as the auth check for downstream routes:
 
 ```ts
-import { isAuthenticated } from "@authaz/hono";
+import type { Context, Next } from "hono";
 
-app.get("/admin", (c) => {
-  if (!isAuthenticated(c)) return c.json({ error: "unauthorized" }, 401);
-  return c.json({ ok: true });
+const requireAuth = async (c: Context, next: Next) => {
+  const me = await app.fetch(
+    new Request(`http://localhost:${process.env.PORT || 3000}/api/auth/me`, {
+      headers: { cookie: c.req.header("cookie") || "" },
+    })
+  );
+  if (!me.ok) return c.json({ error: "Unauthorized" }, 401);
+  return next();
+};
+
+app.use("/api/protected/*", requireAuth);
+app.get("/api/protected/hello", (c) => c.json({ message: "hi" }));
+```
+
+### React SPA — `beforeLoad` (TanStack Router)
+
+```tsx
+import { createFileRoute, redirect } from "@tanstack/react-router";
+
+export const Route = createFileRoute("/admin")({
+  beforeLoad: async () => {
+    const response = await fetch("/api/auth/me", { credentials: "include" });
+    if (!response.ok) {
+      throw redirect({ to: "/api/auth/login" });
+    }
+  },
+  component: AdminPage,
 });
 ```
 
-### React SPA
-
-`useRequireUser` for client-side redirects (UX), and the **server** must still enforce auth on every API call:
-
-```tsx
-import { useRequireUser } from "@authaz/react";
-
-export default function AdminPage() {
-  const { user, isLoading } = useRequireUser();
-  if (isLoading) return <Spinner />;
-  return <h1>Admin — {user.email}</h1>;
-}
-```
-
-If your data loads via `fetch("/api/admin", { credentials: "include" })`, that endpoint *must* be protected by `withAuth` / `isAuthenticated` / `[Authorize]` on the backend. Client-side gating alone is not security.
+If your data loads via `fetch("/api/admin", { credentials: "include" })`, that endpoint *must* be protected on the backend. Client-side gating alone is not security.
 
 ### ASP.NET Core
 
@@ -106,7 +102,7 @@ If the protected route loads but auth was supposed to redirect, the matcher like
 
 ## Anti-patterns
 
-- **Don't use the access token as a database key** to look up "is this user allowed". The token already proves identity; use Authaz's permission check (`/api/v1/authz/check`) for "allowed".
+- **Don't use the access token as a database key** to look up "is this user allowed". The token already proves identity; use the SDK's permission check (`authaz.authz.check` in JS, `authaz.Authorization.Permissions.CheckAsync` in .NET) for "allowed".
 - **Don't mix client-only gating with server returns of protected data.** Either every request is server-validated, or you have a vulnerability.
 - **Don't 301-redirect protected pages to login.** Use 302 (or `Results.Challenge()` in .NET) — 301s get cached and break login UX.
 - **Don't strip the cookie's `SameSite` or `Secure` flags** to make local dev work — set up `localhost` HTTPS instead.

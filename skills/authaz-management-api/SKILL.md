@@ -1,30 +1,21 @@
 ---
 name: authaz-management-api
-description: Use when calling Authaz's Management API — creating users, assigning roles, listing tenants, sending invitations, querying audit logs, managing API keys, or anything else that's not the user-facing OAuth flow. Prefers `Authaz.Sdk` (.NET) and `@authaz/sdk` (JS) over raw HTTP. Triggers on "management API", "Authaz.Sdk", "create user via API", "assign role", "invite user", "audit log".
+description: Use when calling Authaz's Management API from a backend — creating users, assigning roles, listing tenants, sending invitations, querying audit logs, managing API keys, or other admin operations. Prefers `Authaz.Sdk` (.NET) and `createAuthazClient` from `@authaz/sdk` (JS). Triggers on "management API", "Authaz.Sdk", "create user via API", "assign role", "invite user", "audit log".
 ---
 
 # Use the Authaz Management API
 
-The Management API is at `https://api.authaz.io` for the hosted product (substitute your own host if self-hosted). It is **not** the same surface as the OAuth flow, which lives at *your* identity domain (e.g., `https://auth.your-app.com`). The Management API is what your backend hits to administer your Authaz organization — create users, manage roles, audit, branding.
+The Management API is at `https://api.authaz.io` for the hosted product. It is **not** the same surface as the OAuth flow at `https://auth.authaz.io`. Different hosts, different auth (`X-API-Key` for management; cookies/JWTs for end-user flows), different audiences.
 
-Always authenticate with `X-API-Key: sk_live_…`. Some endpoints accept a Bearer access token instead, but API keys are the supported path for backend integrations.
+Always use the SDK — `Authaz.Sdk` for .NET, `createAuthazClient` from `@authaz/sdk` for JS. The endpoint paths differ between SDKs (the .NET SDK uses `/api/v1/...`, the JS SDK uses `/v1/...`), so raw HTTP requires checking the actual SDK source first. The SDKs hide this divergence.
 
 ## Step 1 — Issue an API key
 
-Dashboard → API Keys → Create API Key → grant the scopes you actually need. The full key is shown **once** — copy it into your secret manager immediately.
+Dashboard → API Keys → **Create**. Grant only the scopes you actually need. The full key is shown **once** — copy it into your secret manager immediately.
 
-Or:
+Scope keys to the minimum permissions and issue separate keys per service so rotations are independent.
 
-```http
-POST https://api.authaz.io/api/v1/api-keys
-X-API-Key: sk_live_…   (must already have api_keys:write)
-
-{ "name": "ingest-worker", "permissions": ["users:read", "users:write"] }
-```
-
-Scope the key to the minimum permissions. Issue separate keys per service so rotations are independent.
-
-## Step 2 — Pick the SDK or raw HTTP
+## Step 2 — Install and configure
 
 ### .NET — `Authaz.Sdk`
 
@@ -32,29 +23,86 @@ Scope the key to the minimum permissions. Issue separate keys per service so rot
 dotnet add package Authaz.Sdk
 ```
 
-```csharp
-builder.Services.AddAuthazSdk();
-```
-
 `appsettings.json`:
 
 ```json
-{ "Authaz": { "ApiBaseUrl": "https://api.authaz.io", "ApiKey": "sk_live_…" } }
+{
+  "Authaz": {
+    "BaseUrl": "https://api.authaz.io",
+    "ApiKey": ""
+  }
+}
 ```
+
+For development, use user secrets instead of committing `ApiKey`:
+
+```bash
+dotnet user-secrets init
+dotnet user-secrets set "Authaz:ApiKey" "authaz_..."
+```
+
+`Program.cs`:
+
+```csharp
+using Authaz.Sdk;
+
+builder.Services.AddAuthazSdk(opts =>
+{
+    var section = builder.Configuration.GetSection("Authaz");
+    opts.BaseAddress = new Uri(section["BaseUrl"] ?? "https://api.authaz.io");
+    opts.ApiKey      = section["ApiKey"];
+});
+```
+
+Then inject `IAuthazClient`:
 
 ```csharp
 public class UsersService(IAuthazClient authaz)
 {
-    public async Task<string?> GetEmailAsync(string userId)
+    public async Task<string?> GetEmailAsync(Guid userId, CancellationToken ct = default)
     {
-        var r = await authaz.Users.GetAsync(userId);
-        if (r.IsError) return null;
-        return r.Value.Email;
+        var result = await authaz.Users.GetAsync(userId, ct);
+        if (!result.IsSuccess) return null;
+        return result.Value!.Email;
     }
 }
 ```
 
-`IAuthazClient` exposes typed sub-clients: `Users`, `Roles`, `Tenants`, `Applications`, `Organizations`, `Invitations`, `Policies`, `Config`, `Branding`, `CustomDomains`, `ApiKeys`, `AuthFlow`, `Analytics`, `Audit`, `PermissionCheck`, `M2MCredentials`. Every method returns `AuthazResult<T>` — check `IsError` first; **never** wrap in `try/catch` for control flow.
+**Result-type contract** — every SDK call returns `AuthazResult<T>`:
+
+- `result.IsSuccess` (bool)
+- `result.Value` (T?) — populated on success
+- `result.Error` (AuthazError?) — populated on failure
+
+The SDK does **not throw** on logical errors (404, 403, validation). Wrap in `try/catch` only for transport-level exceptions (`HttpRequestException`).
+
+Typed error subtypes:
+
+```csharp
+static IResult ToError(AuthazError error) => error switch
+{
+    AuthazError.NotFound e     => Results.NotFound(new { error = "not_found", message = e.Message }),
+    AuthazError.Unauthorized   => Results.Unauthorized(),
+    AuthazError.Forbidden      => Results.Forbid(),
+    AuthazError.Validation e   => Results.ValidationProblem(
+                                      e.Fields.ToDictionary(f => f.Field, f => new[] { f.Message })),
+    AuthazError.RateLimited e  => Results.Problem(detail: e.Message, statusCode: 429),
+    _                           => Results.Problem(detail: error.Message, statusCode: 500),
+};
+```
+
+Sub-clients on `IAuthazClient`:
+
+- `Users` — get, list, suspend, activate, sessions, role assignments
+- `Applications` — list, manage applications, branding, custom domains
+- `Tenants` — list, create, update; per-tenant OAuth config
+- `Authorization` — `.Roles`, `.Permissions` (with `CheckAsync`), `.Policies`
+- `Invitations` — send, list, pending count
+- `Email` — providers, templates
+- `Auth` — API keys, OAuth credentials, M2M, account recovery
+- `Audit` — trail logs
+
+See `authaz-sdk-dotnet/Authaz.Sdk/src/Resources/` for the full surface.
 
 ### JavaScript — `@authaz/sdk`
 
@@ -63,97 +111,114 @@ pnpm add @authaz/sdk
 ```
 
 ```ts
-import { createAuthazSdk } from "@authaz/sdk";
+import { createAuthazClient, isOk } from "@authaz/sdk";
 
-const authaz = createAuthazSdk({
-  apiBaseUrl: "https://api.authaz.io",
-  apiKey: process.env.AUTHAZ_API_KEY!,
+const authaz = createAuthazClient({
+  clientId: process.env.AUTHAZ_CLIENT_ID!,
+  clientSecret: process.env.AUTHAZ_CLIENT_SECRET!,
+  organizationId: process.env.AUTHAZ_ORGANIZATION_ID!,
+  apiKey: process.env.AUTHAZ_API_KEY, // optional; falls back to clientSecret
+  // apiDomain / authazDomain default to https://api.authaz.io / https://auth.authaz.io
 });
 
-const user = await authaz.users.get(userId);
+const result = await authaz.users.list({ pageSize: 20 });
+if (isOk(result)) {
+  console.log(result.value); // typed list response
+} else {
+  console.error(result.error.code, result.error.message);
+}
 ```
 
-The JS SDK throws on error (unlike `.NET`'s result type). Wrap calls in `try/catch` only around the boundary of the operation, not around every line.
+Sub-clients on the JS `AuthazClient`:
 
-### Raw HTTP
+- `auth` — login URL, logout URL, code exchange, token refresh
+- `users`, `roles`, `tenants`, `invitations`, `policies`
+- `authz` — `check`, `checkRole`, `checkBulk`, relationship grants
+- `applications`, `apiKeys`, `appApiKeys`
+- `trailLogs`, `m2mCertificates`
 
-If you don't want a dependency, the API is plain JSON:
+**Result type**: every call returns `Result<T>`. Use `isOk(result)` / `isErr(result)` from the SDK. The SDK does not throw on logical errors.
 
-```bash
-curl -X POST https://api.authaz.io/api/v1/users \
-  -H "X-API-Key: $AUTHAZ_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"email":"alice@example.com","name":"Alice"}'
+## Step 3 — Common operations (use the SDK; don't paraphrase HTTP)
+
+### Create / list users
+
+```ts
+// JS
+const created = await authaz.users.create({ email: "alice@example.com", name: "Alice" });
+const list    = await authaz.users.list({ pageSize: 50 });
 ```
 
-But — verify response shapes against the actual API before assuming. Opaque tokens (session IDs, codes) are usually strings even when they look like GUIDs. Don't `Guid.Parse` them.
-
-## Step 3 — Common operations
-
-### Create a user
-
-```http
-POST /api/v1/users
-{ "email": "alice@example.com", "name": "Alice" }
+```csharp
+// .NET
+var created = await authaz.Users.CreateAsync(new CreateUserRequest("alice@example.com", "Alice"));
+var list    = await authaz.Users.ListAsync(pageSize: 50);
 ```
 
-Email goes through the verification flow. To create a user *without* sending email (e.g., bulk import), pass `email_verified: true` (requires the `users:write_unverified` scope).
+### Invite into a tenant
 
-### Invite a user into a tenant
-
-```http
-POST /api/v1/tenants/{tenantId}/invitations
-{ "email": "alice@example.com", "roles": ["editor"] }
+```ts
+const invite = await authaz.invitations.send({
+  email: "alice@example.com",
+  tenantId: "ten_...",
+  roleIds: ["role_..."],
+});
 ```
 
-The invitee receives an email; clicking lands them in Authaz Sign-In already scoped to that tenant.
-
-### Assign / unassign a role
-
-```http
-POST /api/v1/users/{userId}/roles
-{ "role_id": "role_01abc…", "tenant_id": "tenant_01xyz…" }
-
-DELETE /api/v1/users/{userId}/roles/{roleId}?tenant_id=tenant_01xyz…
+```csharp
+var invite = await authaz.Invitations.SendAsync(new SendInvitationRequest(/* ... */));
 ```
 
-`tenant_id` is required for multi-tenant role assignments. Omitting it grants the role *globally* in the application — almost always wrong in B2B SaaS.
+### Check a permission
 
-### List with pagination
-
-```http
-GET /api/v1/users?limit=50&cursor=eyJpZCI6...
+```ts
+const check = await authaz.authz.check({
+  userId: "user_...",            // or `token: "..."`
+  resource: "invoices",
+  action: "approve",
+  tenantId: "ten_...",
+});
+// check.value.allowed: boolean
 ```
 
-Response includes `next_cursor`. Don't try to compute offsets; cursors are opaque. Loop until `next_cursor` is null.
-
-### Read audit log
-
-```http
-GET /api/v1/audit?actor_id={userId}&start=2026-04-01T00:00:00Z&limit=200
+```csharp
+var check = await authaz.Authorization.Permissions.CheckAsync(
+    new CheckPermissionRequest(userId: "user_...", permission: "invoices:approve", tenantId: "ten_..."));
 ```
 
-Filter by `actor_id`, `resource_type`, `action`, time range. Audit data is append-only and survives soft-deletes.
+The JS SDK splits `resource` / `action`. The .NET SDK takes a colon-joined `permission` string. Same operation, different shapes.
+
+### Pagination
+
+JS list operations accept `{ pageSize, cursor }` and return `{ items, nextCursor }`. .NET equivalents take `pageSize` / `cursor` parameters and return `ListResponse<T>`. Loop until `nextCursor` is null/empty.
 
 ## Step 4 — Verify
 
 For every operation you wire up:
 
-1. **Happy path** — call it; observe the response shape; assert exactly the fields your code reads.
-2. **Permissions** — try the same call with a key that lacks the scope; expect 403 `insufficient_scope` with a useful `error_description`.
-3. **Cross-tenant** — in multi-tenant, try calling a tenant-scoped endpoint with a key scoped to a different tenant; expect 403 `cross_tenant_access`.
+1. **Happy path** — call it; observe the response; assert the fields your code reads.
+2. **Permissions** — call with a key that lacks the scope; expect 403 `Forbidden`.
+3. **Cross-tenant** — if multi-tenant, call a tenant-scoped endpoint with a key scoped to a different tenant; expect 403.
 
 ## Anti-patterns
 
-- **Don't store the API key in the frontend.** It's a server-only credential.
-- **Don't `Guid.Parse` IDs from API responses without checking the docs.** Many IDs are string-typed.
-- **Don't poll `/api/v1/users` to detect new users.** Hit the audit log filter or use webhooks (when available).
-- **Don't ignore `AuthazResult.IsError`** in .NET. The result type exists *because* exceptions hide intent.
+- **Don't store the API key in the frontend.** Server-only credential.
+- **Don't use `result.IsError`** in .NET — it's `result.IsSuccess` (or `result.Error != null`).
+- **Don't wrap SDK calls in `try/catch` for control flow.** Use the result type.
+- **Don't `Guid.Parse` IDs from API responses without checking the docs.** Many Authaz IDs are prefixed strings (`user_01abc…`), not GUIDs.
+- **Don't paraphrase endpoint paths from this skill into raw `curl` calls.** The SDKs disagree on `/api/v1/...` vs `/v1/...`; use SDK methods.
 - **Don't share one API key across services.** Per-service keys keep rotation isolated.
+
+## Source of truth
+
+- .NET sample: `authaz-sdk-dotnet/Authaz.Sdk.Sample/Program.cs`
+- .NET SDK surface: `authaz-sdk-dotnet/Authaz.Sdk/src/`
+- JS SDK entry point: `authaz-sdk-js/packages/core/src/index.ts`
+- JS SDK client: `authaz-sdk-js/packages/core/src/client.ts`
 
 ## References
 
-- Management API overview: <https://authaz.io/docs/management-api/overview>
-- Full reference: <https://authaz.io/docs/management-api/reference>
-- SDK overview: <https://authaz.io/docs/sdk/overview>
-- `references/endpoints.md`, `references/error-codes.md`
+- `references/endpoints.md` — high-level catalog of sub-clients
+- `references/error-codes.md` — error shape and retry guidance
+- `authaz-permission-check` — runtime `authz.check` patterns
+- `authaz-multi-tenant` — tenant scoping

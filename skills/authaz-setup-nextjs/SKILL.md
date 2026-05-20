@@ -1,76 +1,222 @@
 ---
 name: authaz-setup-nextjs
-description: Use when adding Authaz authentication to a Next.js app (App Router). Wires `@authaz/next` for OAuth 2.1 + PKCE, server-side session, and middleware-based route protection. Picks single- vs multi-tenant based on the user's app shape. Triggers on "add Authaz to Next.js", "@authaz/next", "Next.js login".
+description: Use when adding Authaz authentication to a Next.js 14+/15 App Router app. Single-shot — writes every required file end to end using `@authaz/next` + `@authaz/react`. Triggers on "add Authaz to Next.js", "set up authentication in Next.js", "@authaz/next".
 ---
 
-# Set up Authaz in a Next.js app
+# Set up Authaz in a Next.js app — single shot
 
-For a Next.js 14+ App Router app. If the project uses the Pages Router, mention it but follow the App Router shape — that's what `@authaz/next` is built for.
+Use this skill when the user wants Authaz wired into a Next.js App Router app in one pass. The code below is taken verbatim from `authaz-sdk-js/examples/nextjs` — keep it that way. Do not improvise function names, props, or env vars from memory.
 
-## Pre-flight
+If the project is **Pages Router only** (no `app/` directory), stop and tell the user that `@authaz/next` targets the App Router. Offer to add an `app/` directory alongside the existing `pages/`.
 
-1. **Confirm App Router.** Look for `app/` (App Router) vs `pages/` (Pages Router). If only `pages/` exists, ask whether they're willing to add an `app/` directory or if you should fall back to the older `pages/api/auth` shape.
-2. **Confirm single- vs multi-tenant.** If `authaz-quickstart` already established this, use that answer. Otherwise ask now.
-3. **Confirm they have an application created.** They need `client_id`, `client_secret`, and the identity domain. If not, walk through step 2 below.
+## What the user must provide before you start
 
-## Step 1 — Create or pick the application
+Four values from the Authaz Dashboard:
 
-In the Authaz Dashboard, **New application** → choose the tenancy type that matches step pre-flight 2 → add `http://localhost:3000/auth/callback` as an allowed callback URL.
+| Env var | Where it comes from |
+|---|---|
+| `AUTHAZ_CLIENT_ID` | Dashboard → your application → Auth Flow Configuration |
+| `AUTHAZ_CLIENT_SECRET` | Same place. Shown once at creation — if lost, rotate it |
+| `AUTHAZ_ORGANIZATION_ID` | Dashboard → top-level (your Authaz org). **Required.** |
+| `AUTHAZ_TENANT_ID` | Dashboard → tenant. For single-tenant apps, use the default tenant Authaz created for your org |
 
-Or via the Management API:
+Plus: in the Authaz Dashboard, add `http://localhost:3000/auth/callback` to the application's **Allowed callback URLs**. Add the production URL when you deploy.
 
-```http
-POST https://api.authaz.io/api/v1/applications
-X-API-Key: sk_live_…
-Content-Type: application/json
+If any of these are missing, stop and ask for them — they cannot be inferred.
 
-{ "name": "my-nextjs-app", "tenancy_type": "single_tenant" }
-```
+The SDK defaults `authazDomain` and `authazIdentityDomain` to `https://auth.authaz.io` and `apiDomain` to `https://api.authaz.io`. Override only if the customer has a custom domain — add `authazDomain` / `apiDomain` options to the handler call in that case.
 
-For multi-tenant: `"tenancy_type": "multi_tenant"` and `"tenancy_mode": "shared"` (default).
-
-## Step 2 — Install
+## Step 1 — Install
 
 ```bash
-pnpm add @authaz/next @authaz/sdk
+pnpm add @authaz/next @authaz/react
 ```
 
-For multi-tenant, also install `jose` to decode the access token's `tenant_id` claim:
+(Use `npm install` / `yarn add` if the project isn't on pnpm — match the project's package manager.)
 
-```bash
-pnpm add jose
-```
+If the project doesn't have Tailwind yet, the example uses it. Skip the Tailwind bits if the user already has a styling solution.
 
-## Step 3 — Configure
-
-Create `.env.local`:
+## Step 2 — Write `.env.local`
 
 ```
-AUTHAZ_CLIENT_ID=app_01abc…
-AUTHAZ_CLIENT_SECRET=cs_live_…
-AUTHAZ_IDENTITY_DOMAIN=https://auth.example.com   # your identity domain from the Authaz Dashboard
+AUTHAZ_CLIENT_ID=your_client_id
+AUTHAZ_CLIENT_SECRET=your_client_secret
+AUTHAZ_TENANT_ID=your_tenant_id
+AUTHAZ_ORGANIZATION_ID=your_organization_id
 ```
 
-Add `.env.local` to `.gitignore` if it's not already there.
+Make sure `.env.local` is in `.gitignore` (Next.js's default `.gitignore` already covers it).
 
-## Step 4 — Wire it up
+## Step 3 — Write the source files
 
-Follow the canonical recipe for the tenancy mode:
+### `src/app/api/auth/[...authaz]/route.ts`
 
-- **Single-tenant**: <https://authaz.io/docs/recipes/nextjs-single-tenant>
-- **Multi-tenant**: <https://authaz.io/docs/recipes/nextjs-multi-tenant>
+```ts
+import { createAuthazHandler } from "@authaz/next";
 
-Both walk through the same shape:
+export const { GET, POST } = createAuthazHandler({
+  clientId: process.env.AUTHAZ_CLIENT_ID!,
+  clientSecret: process.env.AUTHAZ_CLIENT_SECRET!,
+  tenantId: process.env.AUTHAZ_TENANT_ID!,
+  organizationId: process.env.AUTHAZ_ORGANIZATION_ID!,
+  afterLoginUrl: "/dashboard",
+  afterLogoutUrl: "/",
+  debug: process.env.NODE_ENV === "development",
+});
+```
 
-1. **Auth handler** at `app/api/auth/[...authaz]/route.ts` — calls `createAuthazHandler({ clientId, clientSecret, authazIdentityDomain })` and exports `GET, POST`.
-2. **Callback page** at `app/auth/callback/page.tsx` — a "use client" component that converts Authaz's redirect (GET) into a POST to `/api/auth/callback`. Don't try to handle the OAuth callback at `/api/auth/callback` directly — Authaz redirects to a *page*.
-3. **Middleware** at `middleware.ts` — calls `createAuthMiddleware({ publicPaths: ["/", "/api/auth/*", "/auth/callback"], loginPath: "/api/auth/login" })`.
-4. **Reading the user** in a server component — single-tenant uses `requireUser({...}).getOrRedirect()`; multi-tenant decodes the access token via `jose`'s `decodeJwt` to read `tenant_id`.
-5. **Login** is just a link to `/api/auth/login`. **Logout** is a `<form method="POST" action="/api/auth/logout">` — never a link.
+### `src/app/auth/callback/page.tsx`
 
-Copy the code from the recipe directly. The shapes above are the contract; don't paraphrase them from memory.
+```tsx
+"use client";
 
-## Step 5 — Verify
+import { Suspense, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+
+const CallbackContent = (): React.ReactNode => {
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "/api/auth/callback";
+
+    const params = ["code", "state", "error", "error_description"];
+    params.forEach((param) => {
+      const value = searchParams.get(param);
+      if (value) {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = param;
+        input.value = value;
+        form.appendChild(input);
+      }
+    });
+
+    document.body.appendChild(form);
+    form.submit();
+  }, [searchParams]);
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center">
+        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent" />
+        <p className="mt-4 text-gray-600">Completing login...</p>
+      </div>
+    </div>
+  );
+};
+
+const CallbackPage = (): React.ReactNode => {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="text-center">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent" />
+            <p className="mt-4 text-gray-600">Loading...</p>
+          </div>
+        </div>
+      }
+    >
+      <CallbackContent />
+    </Suspense>
+  );
+};
+
+export default CallbackPage;
+```
+
+This page is the bridge between Authaz's GET-redirect and the handler's POST endpoint. **Do not make `/auth/callback` an API route** — the OAuth response arrives via browser redirect and needs the client-side POST to attach the code.
+
+### `src/app/layout.tsx`
+
+If `app/layout.tsx` already exists, only add the `AuthazProvider` wrapper — keep the user's existing markup and metadata.
+
+```tsx
+import type { Metadata } from "next";
+import { AuthazProvider } from "@authaz/react";
+
+export const metadata: Metadata = {
+  title: "Authaz Next.js App",
+  description: "Next.js app with Authaz authentication",
+};
+
+const RootLayout = ({ children }: { children: React.ReactNode }): React.ReactNode => {
+  return (
+    <html lang="en">
+      <body className="min-h-screen bg-gray-50 text-gray-900 antialiased">
+        <AuthazProvider basePath="/api/auth" autoRefresh={true}>
+          {children}
+        </AuthazProvider>
+      </body>
+    </html>
+  );
+};
+
+export default RootLayout;
+```
+
+### `src/app/dashboard/page.tsx` — a protected page
+
+```tsx
+"use client";
+
+import { useRequireAuth, useAuthaz } from "@authaz/react";
+
+const DashboardPage = (): React.ReactNode => {
+  useRequireAuth();
+  const { user } = useAuthaz();
+
+  return (
+    <main className="max-w-7xl mx-auto px-4 py-12">
+      <h1 className="text-3xl font-bold mb-4">Dashboard</h1>
+      <p>Signed in as <strong>{user?.email}</strong></p>
+    </main>
+  );
+};
+
+export default DashboardPage;
+```
+
+`useRequireAuth()` redirects unauthenticated visitors to `/api/auth/login`. Use it in any client component that should be authenticated-only.
+
+### Optional — `src/components/Navbar.tsx` for login/logout buttons
+
+```tsx
+"use client";
+
+import Link from "next/link";
+import { useAuthaz } from "@authaz/react";
+
+export const Navbar = (): React.ReactNode => {
+  const { isAuthenticated, isLoading, user, login, logout } = useAuthaz();
+
+  return (
+    <nav className="bg-white shadow-sm border-b border-gray-200">
+      <div className="max-w-7xl mx-auto px-4 flex justify-between h-16 items-center">
+        <Link href="/" className="text-xl font-semibold">Authaz Demo</Link>
+        {isLoading ? null : isAuthenticated ? (
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-600">{user?.email}</span>
+            <button onClick={() => logout()} className="px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200">
+              Logout
+            </button>
+          </div>
+        ) : (
+          <button onClick={() => login()} className="px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700">
+            Login
+          </button>
+        )}
+      </div>
+    </nav>
+  );
+};
+```
+
+`login()` / `logout()` from `useAuthaz()` are the canonical client-side handles. Don't construct the URLs by hand.
+
+## Step 4 — Run and verify
 
 ```bash
 pnpm dev
@@ -78,29 +224,56 @@ pnpm dev
 
 Then in the browser:
 
-1. Visit `http://localhost:3000` — should be public.
-2. Click **Sign in** — should redirect to your Authaz identity domain, complete the password flow.
-3. Land on `/dashboard` (or your protected page) signed in.
-4. Click **Sign out** — should clear the session and bounce you back to `/`.
+1. `http://localhost:3000` — loads, **Login** button visible.
+2. Click **Login** → redirects to `https://auth.authaz.io/...` (or the custom identity domain if configured) → complete the flow.
+3. Lands back on `/dashboard` showing the signed-in user's email.
+4. Click **Logout** → cleared session, back at `/`.
 
-For multi-tenant: confirm the `tenant_id` claim appears in the decoded token. Browser DevTools → Application → Cookies → find the Authaz session cookie → decode the JWT.
+If you don't have a Navbar, navigate manually:
+- `http://localhost:3000/api/auth/login` triggers the flow.
+- `http://localhost:3000/api/auth/logout` ends it.
+- `http://localhost:3000/dashboard` directly tests the guard.
 
-If anything fails, the most common cause is a callback URL mismatch — see `authaz-troubleshoot-oauth`.
+## When something fails
 
-## Anti-patterns
+Almost every failure on the first run is one of:
 
-- **Don't store tokens in `localStorage`.** The SDK uses HttpOnly cookies. Don't fight it.
-- **Don't put `AUTHAZ_CLIENT_SECRET` in `NEXT_PUBLIC_*`.** It's server-only.
-- **Don't skip PKCE / `state`.** The SDK handles both; if you bypass the handler you lose them.
-- **Don't read `tenant_id` from a query string or header** in multi-tenant — only from the token.
-- **Don't add `Cache-Control: public` to protected pages.** Authenticated pages must not be CDN-cached.
-- **Don't make `/auth/callback` an API route.** It's a page that POSTs into the handler — see step 4.2.
+1. **`invalid_redirect_uri`** on the Authaz page — the URL the browser used isn't on the application's allowed callback list. Add the exact URL (with port, with/without trailing slash matching the request) in the Dashboard.
+2. **`invalid_grant`** on the callback — usually a double-POST (React StrictMode mounting twice). The example callback page is structured to avoid this; if you customized it, restore the `useEffect` body.
+3. **No login button / `useAuthaz` is undefined** — the `AuthazProvider` is missing or wraps too narrowly. It must wrap *all* components that call `useAuthaz()` or `useRequireAuth()`.
+4. **Cookie not set** — running over plain `http` in production? The session cookie is `Secure`. Use HTTPS in production. In dev, `localhost` is exempt.
+
+For anything else, hand off to `authaz-troubleshoot-oauth`.
+
+## Hard rules — do not violate
+
+- **Never put `AUTHAZ_CLIENT_SECRET` (or `AUTHAZ_ORGANIZATION_ID`) in a `NEXT_PUBLIC_*` var.** They're server-only.
+- **Never store tokens in `localStorage`.** The SDK uses HttpOnly cookies; that's the design.
+- **`/auth/callback` is a page, not an API route.** The POST is to `/api/auth/callback`, which is the handler — both live under different paths.
+- **Don't add `AUTHAZ_IDENTITY_DOMAIN` unless the customer has a custom identity domain.** The SDK defaults to `https://auth.authaz.io` — let it.
+- **Don't construct OAuth URLs by hand.** Use `login()` / `logout()` from `useAuthaz()` on the client and `/api/auth/login` etc. on the server.
+
+## Source of truth
+
+The code above is lifted from `authaz-sdk-js/examples/nextjs/`. If the SDK ships a new major version, re-check the example before trusting this skill's snippets. The file layout there is:
+
+```
+src/
+├── app/
+│   ├── api/auth/[...authaz]/route.ts
+│   ├── auth/callback/page.tsx
+│   ├── dashboard/page.tsx
+│   ├── layout.tsx
+│   └── page.tsx
+└── components/
+    ├── Navbar.tsx
+    └── UserProfile.tsx
+```
 
 ## References
 
-- Recipe (single-tenant): <https://authaz.io/docs/recipes/nextjs-single-tenant>
-- Recipe (multi-tenant): <https://authaz.io/docs/recipes/nextjs-multi-tenant>
-- `references/endpoints.md` — endpoints, JWKS URL, claims
-- `references/error-codes.md` — when something breaks
-- `authaz-troubleshoot-oauth` — for redirect_uri / token / PKCE failures
-- `authaz-multi-tenant` — for tenant-scoped queries and permission checks
+- Real example: `authaz-sdk-js/examples/nextjs/`
+- SDK source: `authaz-sdk-js/packages/next/src/index.tsx`
+- `authaz-troubleshoot-oauth` — failure diagnostics
+- `authaz-multi-tenant` — tenant scoping in business logic
+- `authaz-permission-check` — runtime authorization checks

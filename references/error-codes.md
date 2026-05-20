@@ -53,10 +53,11 @@ Common errors a developer will see while integrating Authaz, with the actionable
 The SDK returns `AuthazResult<T>`, **not exceptions**. Always pattern-match:
 
 ```csharp
-var result = await client.Users.GetAsync(userId);
-if (result.IsError)
+var result = await authaz.Users.GetAsync(userId);
+if (!result.IsSuccess)
 {
-    // result.Error has type, message, and details
+    // result.Error is a typed AuthazError (NotFound, Unauthorized, Forbidden,
+    // Validation, RateLimited, …). Pattern-match on the subtype.
 }
 ```
 

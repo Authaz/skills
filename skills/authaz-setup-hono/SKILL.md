@@ -1,93 +1,171 @@
 ---
 name: authaz-setup-hono
-description: Use when adding Authaz authentication to a Hono backend (Node, Bun, or edge). Wires `@authaz/hono` for OAuth 2.1 + PKCE, cookie-based sessions, and `createAuthMiddleware` route protection. Triggers on "add Authaz to Hono", "@authaz/hono", "Hono auth".
+description: Use when adding Authaz authentication to a Hono backend on Node (with `@hono/node-server`). Single-shot — writes the server entry plus the auth-handler module using `@authaz/hono`. Triggers on "add Authaz to Hono", "set up authentication in Hono", "@authaz/hono".
 ---
 
-# Set up Authaz in a Hono backend
+# Set up Authaz in a Hono backend — single shot
 
-Targets Hono on Node or Bun. Edge runtimes work too but cookie behavior differs — call out the difference if the user's project uses Cloudflare Workers / Vercel Edge.
+Use this skill when the user wants Authaz wired into a Hono server in one pass. Code is taken verbatim from `authaz-sdk-js/examples/react-hono/server/`.
 
-## Pre-flight
+This skill covers the **server only**. If the user is wiring a React SPA against this server, hand off to `authaz-setup-react` after this skill finishes — both halves are the same example.
 
-1. **Confirm runtime.** Node, Bun, or edge? Affects the install (`@hono/node-server` vs `bun run`).
-2. **Confirm single- vs multi-tenant.** Use the answer from `authaz-quickstart` if available.
-3. **Confirm the app exists in Authaz** — `client_id`, `client_secret`, and identity domain.
+If the project targets Bun, Cloudflare Workers, or Vercel Edge, this skill still applies but skip `@hono/node-server` and use the runtime's native server. The auth handler module is identical.
 
-## Step 1 — Application setup
+## What the user must provide before you start
 
-Dashboard or:
+Four values from the Authaz Dashboard:
 
-```http
-POST https://api.authaz.io/api/v1/applications
-X-API-Key: sk_live_…
-Content-Type: application/json
+| Env var | Where it comes from |
+|---|---|
+| `AUTHAZ_CLIENT_ID` | Dashboard → your application → Auth Flow Configuration |
+| `AUTHAZ_CLIENT_SECRET` | Same place. Shown once at creation — if lost, rotate it |
+| `AUTHAZ_ORGANIZATION_ID` | Dashboard → top-level (your Authaz org). **Required.** |
+| `AUTHAZ_TENANT_ID` | Dashboard → tenant. For single-tenant apps, use the default tenant Authaz created for your org |
 
-{ "name": "my-hono-api", "tenancy_type": "single_tenant" }
-```
+Plus, in the Authaz Dashboard, add the callback URL the browser will hit to **Allowed callback URLs**:
 
-Allowed callback URL: `http://localhost:3000/auth/callback` (for local dev).
+- If the server alone is the front door: `http://localhost:3000/auth/callback`
+- If a Vite SPA is paired in front (Vite default port): `http://localhost:5173/auth/callback`
 
-## Step 2 — Install
+If any of these are missing, stop and ask — they cannot be inferred.
 
-```bash
-pnpm add hono @authaz/hono @authaz/sdk
-pnpm add -D @hono/node-server tsx   # if Node
-```
+The SDK defaults to `https://auth.authaz.io` and `https://api.authaz.io`. Override only if the customer set up a custom domain — add `authazDomain` / `apiDomain` to `createAuthazHandler()`.
 
-(Skip `@hono/node-server` for Bun.)
-
-## Step 3 — Configure
-
-`.env`:
-
-```
-AUTHAZ_CLIENT_ID=app_01abc…
-AUTHAZ_CLIENT_SECRET=cs_live_…
-AUTHAZ_IDENTITY_DOMAIN=https://auth.example.com   # your identity domain from the Authaz Dashboard
-```
-
-## Step 4 — Wire it up
-
-Recipe:
-
-- **Single-tenant**: <https://authaz.io/docs/recipes/hono-single-tenant>
-- **Multi-tenant**: <https://authaz.io/docs/recipes/hono-multi-tenant>
-
-The shape is:
-
-1. **Mount the auth handler**: `app.route("/api/auth", createAuthazHandler({ clientId, clientSecret, authazIdentityDomain }))`. This exposes `/api/auth/{login,callback,logout,me,refresh}`.
-2. **Add the middleware**: `app.use("*", createAuthMiddleware({ publicPaths: ["/", "/api/auth/*", "/auth/callback"], loginPath: "/api/auth/login" }))`.
-3. **Use `isAuthenticated(c)` inside protected handlers** to short-circuit unauthenticated requests with a 401.
-4. **For multi-tenant**, decode the JWT cookie with `jose.decodeJwt` to read `tenant_id`. Validate the signature against the JWKS at `${AUTHAZ_IDENTITY_DOMAIN}/universal/.well-known/jwks/${client_id}.json` before trusting any claim in business logic.
-
-Copy from the recipe — don't paraphrase. The function names and middleware signature are exact.
-
-## Step 5 — Verify
+## Step 1 — Install
 
 ```bash
-pnpm tsx src/index.ts   # or bun run src/index.ts
+pnpm add hono @authaz/hono
+pnpm add -D @hono/node-server tsx
+```
+
+For Bun, replace `@hono/node-server` with `bun run`. For Workers, skip both.
+
+## Step 2 — Write `.env`
+
+```
+AUTHAZ_CLIENT_ID=your_client_id
+AUTHAZ_CLIENT_SECRET=your_client_secret
+AUTHAZ_TENANT_ID=your_tenant_id
+AUTHAZ_ORGANIZATION_ID=your_organization_id
+PORT=3000
+```
+
+Add `.env` to `.gitignore`.
+
+## Step 3 — Write the source files
+
+### `server/auth.ts`
+
+```ts
+import { createAuthazHandler } from "@authaz/hono";
+
+export const authHandler = createAuthazHandler({
+  clientId: process.env.AUTHAZ_CLIENT_ID!,
+  clientSecret: process.env.AUTHAZ_CLIENT_SECRET!,
+  tenantId: process.env.AUTHAZ_TENANT_ID!,
+  organizationId: process.env.AUTHAZ_ORGANIZATION_ID!,
+  afterLoginUrl: "/dashboard",
+  afterLogoutUrl: "/",
+  debug: process.env.NODE_ENV === "development",
+});
+```
+
+`afterLoginUrl` / `afterLogoutUrl` are where the user lands after the OAuth round-trip succeeds. Match them to actual routes in your app.
+
+### `server/index.ts`
+
+```ts
+import { serve } from "@hono/node-server";
+import { Hono } from "hono";
+import { authHandler } from "./auth.js";
+
+const app = new Hono();
+
+// Mount auth routes — exposes /api/auth/{login,callback,logout,me,refresh}
+app.route("/api/auth", authHandler);
+
+// Your application routes go here, e.g.:
+// app.get("/api/me", async (c) => { ... });
+
+const port = parseInt(process.env.PORT || "3000", 10);
+
+console.log(`Server running at http://localhost:${port}`);
+
+serve({ fetch: app.fetch, port });
+```
+
+The handler mount creates these endpoints under `/api/auth`:
+
+- `GET /api/auth/login` — start the OAuth flow
+- `POST /api/auth/callback` — receive the auth code from the browser-side callback page
+- `GET /api/auth/logout` — end the session
+- `GET /api/auth/me` — read the current user (returns 401 if signed out)
+- `POST /api/auth/refresh` — refresh the access token
+
+Keep the prefix exactly `/api/auth`. The SDK's client (`@authaz/react`) and the standalone callback page both expect this path.
+
+### Optional — gating your own routes
+
+```ts
+// server/index.ts (add below the auth mount)
+import type { Context, Next } from "hono";
+
+const requireAuth = async (c: Context, next: Next) => {
+  const meResponse = await app.fetch(
+    new Request(`http://localhost:${process.env.PORT || 3000}/api/auth/me`, {
+      headers: { cookie: c.req.header("cookie") || "" },
+    })
+  );
+  if (!meResponse.ok) return c.json({ error: "Unauthorized" }, 401);
+  return next();
+};
+
+app.use("/api/protected/*", requireAuth);
+app.get("/api/protected/hello", (c) => c.json({ message: "hi, signed-in user" }));
+```
+
+The handler exposes `/api/auth/me` precisely so business routes can re-check session state without re-implementing cookie parsing. Don't roll your own JWT verifier — call `/api/auth/me`.
+
+## Step 4 — Run and verify
+
+```bash
+pnpm tsx watch server/index.ts
 ```
 
 Then:
 
-1. `curl http://localhost:3000/` — public, returns the welcome string.
-2. Visit `http://localhost:3000/me` in a browser — bounces to Authaz Sign-In, then back to `/me` returning JSON `{ email, sub }`.
-3. `curl -i http://localhost:3000/protected` (no cookie) → 401.
-4. After signing in, the same request with the session cookie → 200.
+1. `curl http://localhost:3000/api/auth/me` → `401 Unauthorized`. The endpoint exists; the user just isn't signed in.
+2. Open `http://localhost:3000/api/auth/login` in a browser → redirects to `https://auth.authaz.io/...` → complete sign-in.
+3. After the callback, the browser has the Authaz session cookies. Reload `curl http://localhost:3000/api/auth/me` with the cookies (use the browser's DevTools to confirm there's no 401).
+4. `curl http://localhost:3000/api/auth/logout` → clears cookies; `/me` is 401 again.
 
-If the pure-API client (no browser) needs to authenticate, that's M2M, not user auth — see `authaz-add-provider` and search for "client credentials".
+If you're pairing with a Vite SPA, you'll also need the SPA-side callback page at `/auth/callback`. That's in `authaz-setup-react` — invoke it next.
 
-## Anti-patterns
+## When something fails
 
-- **Don't roll your own cookie-signing logic.** The middleware handles signing, encryption, and rotation.
-- **Don't trust the cookie's claims without verifying the JWT signature** when the data comes from the *access token* (the part the browser can't tamper with). The session cookie is HttpOnly and SDK-signed, but anything you read from `Authorization: Bearer` headers must be JWKS-verified.
-- **Don't skip CORS configuration if the React SPA recipe pairs with this.** Allow credentials and the SPA's origin only.
-- **Don't tee the auth handler under a path that conflicts** (e.g., `/api`). `/api/auth` is the convention — keep it.
+1. **`invalid_redirect_uri`** — the URL the browser sent is not on the application's allowed list. The Hono server runs on `:3000`, but if a Vite SPA proxies through, the *browser* URL is `:5173/auth/callback`. Add the URL the browser actually used.
+2. **CORS errors** — only happens if the SPA isn't proxied through the Hono server. The example uses a Vite proxy (`/api → :3000`) so there's no CORS. If you split origins, add `app.use("*", cors({ origin: "...", credentials: true }))`.
+3. **401 even after sign-in** — the browser dropped the cookie. Check `Secure`/`SameSite`: in dev, both servers must be on localhost. In prod, both must be HTTPS, same site.
+4. **Handler 404s under `/api/auth/...`** — the `app.route("/api/auth", authHandler)` line is missing or mounted under a different prefix.
+
+For other failures hand off to `authaz-troubleshoot-oauth`.
+
+## Hard rules — do not violate
+
+- **Never leak `AUTHAZ_CLIENT_SECRET` or `AUTHAZ_ORGANIZATION_ID` to the browser.** Server-only.
+- **Never sign your own session cookies.** The handler does it.
+- **Keep the mount at `/api/auth`.** The browser callback page, the `AuthazProvider` `basePath` default, and the SPA hooks all assume this path.
+- **Don't reimplement `/api/auth/me`.** The handler exposes it; use it for downstream auth checks.
+- **Don't add `AUTHAZ_IDENTITY_DOMAIN`** unless the customer has a custom identity domain. The SDK defaults to `https://auth.authaz.io`.
+
+## Source of truth
+
+The code above is lifted from `authaz-sdk-js/examples/react-hono/server/`. The corresponding SPA is in `authaz-sdk-js/examples/react-hono/src/` — see `authaz-setup-react`.
 
 ## References
 
-- Recipe (single-tenant): <https://authaz.io/docs/recipes/hono-single-tenant>
-- Recipe (multi-tenant): <https://authaz.io/docs/recipes/hono-multi-tenant>
-- `references/endpoints.md` — JWKS URL, claims
-- `references/error-codes.md`
-- `authaz-troubleshoot-oauth`, `authaz-multi-tenant`, `authaz-permission-check`
+- Real example: `authaz-sdk-js/examples/react-hono/`
+- SDK source: `authaz-sdk-js/packages/hono/src/`
+- `authaz-setup-react` — paired frontend
+- `authaz-troubleshoot-oauth` — failure diagnostics
+- `authaz-multi-tenant`, `authaz-permission-check`
