@@ -18,7 +18,7 @@ Targets Hono on Node or Bun. Edge runtimes work too but cookie behavior differs 
 Dashboard or:
 
 ```http
-POST https://api.rorix.io/api/v1/applications
+POST https://api.authaz.io/api/v1/applications
 X-API-Key: sk_live_…
 Content-Type: application/json
 
@@ -43,7 +43,7 @@ pnpm add -D @hono/node-server tsx   # if Node
 ```
 AUTHAZ_CLIENT_ID=app_01abc…
 AUTHAZ_CLIENT_SECRET=cs_live_…
-AUTHAZ_IDENTITY_DOMAIN=https://auth.rorix.io
+AUTHAZ_IDENTITY_DOMAIN=https://auth.example.com   # your identity domain from the Authaz Dashboard
 ```
 
 ## Step 4 — Wire it up

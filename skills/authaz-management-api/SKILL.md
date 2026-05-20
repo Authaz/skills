@@ -5,7 +5,7 @@ description: Use when calling Authaz's Management API — creating users, assign
 
 # Use the Authaz Management API
 
-The Management API is at `https://api.rorix.io` (or the customer's API host). It is **not** the same surface as the OAuth flow at `auth.rorix.io`. The Management API is what your backend hits to administer your Authaz tenant — create users, manage roles, audit, branding.
+The Management API is at `https://api.authaz.io` for the hosted product (substitute your own host if self-hosted). It is **not** the same surface as the OAuth flow, which lives at *your* identity domain (e.g., `https://auth.your-app.com`). The Management API is what your backend hits to administer your Authaz organization — create users, manage roles, audit, branding.
 
 Always authenticate with `X-API-Key: sk_live_…`. Some endpoints accept a Bearer access token instead, but API keys are the supported path for backend integrations.
 
@@ -16,7 +16,7 @@ Dashboard → API Keys → Create API Key → grant the scopes you actually need
 Or:
 
 ```http
-POST https://api.rorix.io/api/v1/api-keys
+POST https://api.authaz.io/api/v1/api-keys
 X-API-Key: sk_live_…   (must already have api_keys:write)
 
 { "name": "ingest-worker", "permissions": ["users:read", "users:write"] }
@@ -39,7 +39,7 @@ builder.Services.AddAuthazSdk();
 `appsettings.json`:
 
 ```json
-{ "Authaz": { "ApiBaseUrl": "https://api.rorix.io", "ApiKey": "sk_live_…" } }
+{ "Authaz": { "ApiBaseUrl": "https://api.authaz.io", "ApiKey": "sk_live_…" } }
 ```
 
 ```csharp
@@ -66,7 +66,7 @@ pnpm add @authaz/sdk
 import { createAuthazSdk } from "@authaz/sdk";
 
 const authaz = createAuthazSdk({
-  apiBaseUrl: "https://api.rorix.io",
+  apiBaseUrl: "https://api.authaz.io",
   apiKey: process.env.AUTHAZ_API_KEY!,
 });
 
@@ -80,7 +80,7 @@ The JS SDK throws on error (unlike `.NET`'s result type). Wrap calls in `try/cat
 If you don't want a dependency, the API is plain JSON:
 
 ```bash
-curl -X POST https://api.rorix.io/api/v1/users \
+curl -X POST https://api.authaz.io/api/v1/users \
   -H "X-API-Key: $AUTHAZ_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"email":"alice@example.com","name":"Alice"}'

@@ -1,8 +1,10 @@
 # Authaz skills
 
-Skills for AI coding agents (Claude Code, Copilot, Cursor, Cline, and others) that integrate [Authaz](https://authaz.io) into your application. They wrap the canonical recipes at `https://authaz.io/docs/recipes` and give your agent the structure it needs to pick the right approach for your stack — instead of guessing.
+Skills for AI coding agents (Claude Code, Copilot, Cursor, Cline, and others) that help you **add Authaz to a new project**. They wrap the canonical recipes at `https://authaz.io/docs/recipes` so your agent picks the right setup for your stack instead of guessing.
 
-These skills are for **app developers integrating Authaz**, not for working on the Authaz codebase itself.
+The bundle is scoped to onboarding: **setting up Authaz** in a TypeScript/Node or .NET project, and **identifying common issues** during the first integration. It is *not* for working on the Authaz codebase itself.
+
+Supported stacks: Next.js, Hono, React SPA, ASP.NET Core. For anything else, agents can fall back to `@authaz/sdk` (JS) or raw OAuth/JWKS calls per the recipes.
 
 ## Install
 

@@ -24,7 +24,7 @@ Pick `shared` unless you have a concrete reason for `isolated`. Shared lets the 
 ## Step 2 — Provision a tenant
 
 ```http
-POST https://api.rorix.io/api/v1/tenants
+POST https://api.authaz.io/api/v1/tenants
 X-API-Key: sk_live_…
 
 { "name": "Acme Corp" }
@@ -35,7 +35,7 @@ The response includes `tenant_id`. Store it linked to your customer record.
 Invite the customer's first user:
 
 ```http
-POST https://api.rorix.io/api/v1/tenants/{tenantId}/invitations
+POST https://api.authaz.io/api/v1/tenants/{tenantId}/invitations
 X-API-Key: sk_live_…
 
 { "email": "founder@acme.com", "roles": ["admin"] }

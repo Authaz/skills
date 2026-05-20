@@ -20,7 +20,7 @@ There is no `Authaz.AspNetCore` adapter. Don't invent one. The standard `AddOpen
 Dashboard or:
 
 ```http
-POST https://api.rorix.io/api/v1/applications
+POST https://api.authaz.io/api/v1/applications
 X-API-Key: sk_live_…
 
 { "name": "my-aspnet-app", "tenancy_type": "single_tenant" }
@@ -44,16 +44,16 @@ dotnet add package Microsoft.AspNetCore.Authentication.OpenIdConnect
 ```json
 {
   "Authaz": {
-    "Authority": "https://auth.rorix.io",
+    "Authority": "https://auth.example.com",
     "ClientId": "app_01abc…",
     "ClientSecret": "cs_live_…",
-    "ApiBaseUrl": "https://api.rorix.io",
+    "ApiBaseUrl": "https://api.authaz.io",
     "ApiKey": "sk_live_…"
   }
 }
 ```
 
-In production, move `ClientSecret` and `ApiKey` to user secrets, env vars (`Authaz__ClientSecret`), or a secrets manager. Never commit them.
+Replace `auth.example.com` with your identity domain from the Authaz Dashboard. In production, move `ClientSecret` and `ApiKey` to user secrets, env vars (`Authaz__ClientSecret`), or a secrets manager. Never commit them.
 
 ## Step 4 — Wire it up
 
@@ -82,7 +82,7 @@ dotnet run
 Then:
 
 1. Browse to `https://localhost:5001/` — public.
-2. Browse to `https://localhost:5001/dashboard` — bounces to `auth.rorix.io`, signs in, returns. The page shows `User.FindFirst("email")?.Value`.
+2. Browse to `https://localhost:5001/dashboard` — bounces to your Authaz identity domain, signs in, returns. The page shows `User.FindFirst("email")?.Value`.
 3. Hit `/me/profile` — calls `IAuthazClient.Users.GetAsync(...)` and returns the JSON.
 4. For multi-tenant, confirm `User.FindFirst("tenant_id")` returns a value, and the `AuthorizationHandler` enforces it.
 

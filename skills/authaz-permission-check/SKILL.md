@@ -20,7 +20,7 @@ Decide the names up-front; they're cheap to add but expensive to rename. Keep th
 If the permission doesn't exist yet, define it in the Dashboard (Authorization → Permissions) or via:
 
 ```http
-POST https://api.rorix.io/api/v1/permissions
+POST https://api.authaz.io/api/v1/permissions
 X-API-Key: sk_live_…
 
 { "name": "invoices:approve", "description": "Approve a posted invoice" }
@@ -29,7 +29,7 @@ X-API-Key: sk_live_…
 Then attach it to a role:
 
 ```http
-POST https://api.rorix.io/api/v1/roles/{roleId}/permissions
+POST https://api.authaz.io/api/v1/roles/{roleId}/permissions
 X-API-Key: sk_live_…
 
 { "permissions": ["invoices:approve"] }
@@ -42,7 +42,7 @@ The check is a server-side call. Don't do it from the browser — the API key wo
 ### Single check
 
 ```http
-POST https://api.rorix.io/api/v1/authz/check
+POST https://api.authaz.io/api/v1/authz/check
 X-API-Key: sk_live_…   (or Authorization: Bearer <user access token>)
 Content-Type: application/json
 
@@ -64,7 +64,7 @@ Response:
 ### Bulk check (preferred when you'll check multiple in one request)
 
 ```http
-POST https://api.rorix.io/api/v1/authz/check-bulk
+POST https://api.authaz.io/api/v1/authz/check-bulk
 X-API-Key: sk_live_…
 
 {
@@ -92,7 +92,7 @@ Cheaper than three single calls and the latency is sub-millisecond on the Authaz
 
 ```ts
 async function canApprove(userId: string, tenantId: string) {
-  const r = await fetch("https://api.rorix.io/api/v1/authz/check", {
+  const r = await fetch("https://api.authaz.io/api/v1/authz/check", {
     method: "POST",
     headers: {
       "X-API-Key": process.env.AUTHAZ_API_KEY!,

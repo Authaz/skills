@@ -35,11 +35,12 @@ Cache the answer for the rest of the session: pass it to the chosen `authaz-setu
 
 Before handing off, check that the user has:
 
-1. An Authaz account (Dashboard or self-hosted)
-2. A `client_id`, `client_secret`, and identity domain (e.g. `auth.rorix.io` or a custom domain)
-3. An application created (or willingness to create one — the setup skill walks through it)
+1. **An Authaz account** — sign up at <https://authaz.io> if they don't have one yet (or confirm a self-hosted instance is reachable).
+2. **An application** in the Authaz Dashboard for this project. Dashboard → Applications → New application. If they haven't created one yet, the setup skill walks through it — they only need the account ready.
+3. **`client_id` + `client_secret`** — shown in the Dashboard under the application's *Auth Flow Configuration*. The secret is shown **once** at creation; if they lost it, rotate.
+4. **Their identity domain** — also in the Dashboard, the URL where their hosted Sign-In lives (custom domain or the default subdomain Authaz issued). They'll use it as `AUTHAZ_IDENTITY_DOMAIN`.
 
-If they don't have these, point them at <https://authaz.io/docs/getting-started> first.
+If any are missing, point them at <https://authaz.io/docs/getting-started> first.
 
 ## Step 4 — Hand off
 

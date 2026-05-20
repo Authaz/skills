@@ -20,7 +20,7 @@ In the Authaz Dashboard, **New application** → choose the tenancy type that ma
 Or via the Management API:
 
 ```http
-POST https://api.rorix.io/api/v1/applications
+POST https://api.authaz.io/api/v1/applications
 X-API-Key: sk_live_…
 Content-Type: application/json
 
@@ -48,7 +48,7 @@ Create `.env.local`:
 ```
 AUTHAZ_CLIENT_ID=app_01abc…
 AUTHAZ_CLIENT_SECRET=cs_live_…
-AUTHAZ_IDENTITY_DOMAIN=https://auth.rorix.io
+AUTHAZ_IDENTITY_DOMAIN=https://auth.example.com   # your identity domain from the Authaz Dashboard
 ```
 
 Add `.env.local` to `.gitignore` if it's not already there.
@@ -79,7 +79,7 @@ pnpm dev
 Then in the browser:
 
 1. Visit `http://localhost:3000` — should be public.
-2. Click **Sign in** — should redirect to `auth.rorix.io`, complete the password flow.
+2. Click **Sign in** — should redirect to your Authaz identity domain, complete the password flow.
 3. Land on `/dashboard` (or your protected page) signed in.
 4. Click **Sign out** — should clear the session and bounce you back to `/`.
 

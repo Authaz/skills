@@ -1,10 +1,17 @@
 # Authaz endpoint reference
 
-Canonical hostnames and routes for an Authaz integration. The defaults assume the hosted product on `rorix.io`; replace with the customer's custom domain when one is configured.
+Canonical hostnames and routes for an Authaz integration.
+
+Two URLs you need from the **Authaz Dashboard** before you start:
+
+- **Your identity domain** — where end users sign in (e.g., `https://auth.your-app.com` for a custom domain, or the default subdomain Authaz issued you).
+- **The Management API base URL** — `https://api.authaz.io` for the hosted product, or your self-hosted address.
+
+Throughout this file, `auth.example.com` stands in for your identity domain — replace it with the value from the Dashboard.
 
 ## Identity domain (Authaz Sign-In + OAuth 2.1)
 
-Default: `https://auth.rorix.io`
+Example: `https://auth.example.com` (your identity domain, from the Dashboard)
 
 | Purpose | Method | Path |
 |---|---|---|
@@ -19,7 +26,7 @@ PKCE (S256) is **required** on the authorization-code grant. Implicit and passwo
 
 ## Management API
 
-Default: `https://api.rorix.io`
+Hosted base URL: `https://api.authaz.io` (self-hosted: substitute your own host).
 
 Authentication: `X-API-Key: sk_live_…` header. (Some endpoints accept a Bearer access token instead — see the docs page.)
 

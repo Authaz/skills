@@ -25,12 +25,12 @@ If the user asks for `passkey` or `saml`, say it's not yet shipping and offer th
 
 ## Step 2 — Get IdP credentials (for social providers)
 
-Each social provider has its own developer console flow. Get:
+Each social provider has its own developer console flow. The Authaz-side callback always lives at `https://<your-identity-domain>/universal/oauth/callback/{provider}` — substitute your identity domain (from the Authaz Dashboard) before pasting into the IdP console. Below, `auth.example.com` is a placeholder for your domain.
 
-- **Google**: GCP → APIs & Services → Credentials → "OAuth 2.0 Client ID". Authorized redirect URI: `https://auth.rorix.io/universal/oauth/callback/google` (replace with the customer's identity domain if custom).
-- **Microsoft**: Azure Portal → Microsoft Entra ID → App registrations → Authentication → add `https://auth.rorix.io/universal/oauth/callback/microsoft` as a redirect URI.
-- **Apple**: Apple Developer → Certificates, Identifiers & Profiles → Service ID → enable "Sign in with Apple" → return URL `https://auth.rorix.io/universal/oauth/callback/apple`. You upload a `.p8` private key, not a secret.
-- **GitHub**: GitHub → Settings → Developer settings → OAuth Apps → callback URL `https://auth.rorix.io/universal/oauth/callback/github`.
+- **Google**: GCP → APIs & Services → Credentials → "OAuth 2.0 Client ID". Authorized redirect URI: `https://auth.example.com/universal/oauth/callback/google`.
+- **Microsoft**: Azure Portal → Microsoft Entra ID → App registrations → Authentication → add `https://auth.example.com/universal/oauth/callback/microsoft` as a redirect URI.
+- **Apple**: Apple Developer → Certificates, Identifiers & Profiles → Service ID → enable "Sign in with Apple" → return URL `https://auth.example.com/universal/oauth/callback/apple`. You upload a `.p8` private key, not a secret.
+- **GitHub**: GitHub → Settings → Developer settings → OAuth Apps → callback URL `https://auth.example.com/universal/oauth/callback/github`.
 
 The exact callback path on the Authaz side is fixed — don't paraphrase it. Verify against `references/endpoints.md` if unsure.
 
@@ -45,7 +45,7 @@ Authentication → Providers → toggle the provider → paste the IdP credentia
 Password (toggle the policy fields):
 
 ```http
-PATCH https://api.rorix.io/api/v1/applications/{appId}/auth-providers/password
+PATCH https://api.authaz.io/api/v1/applications/{appId}/auth-providers/password
 X-API-Key: sk_live_…
 
 { "enabled": true, "min_length": 12, "require_mfa": false }
@@ -54,7 +54,7 @@ X-API-Key: sk_live_…
 Social (Google example):
 
 ```http
-PUT https://api.rorix.io/api/v1/applications/{appId}/auth-providers/google
+PUT https://api.authaz.io/api/v1/applications/{appId}/auth-providers/google
 X-API-Key: sk_live_…
 
 { "enabled": true, "client_id": "…", "client_secret": "…" }
@@ -63,7 +63,7 @@ X-API-Key: sk_live_…
 Magic link:
 
 ```http
-PATCH https://api.rorix.io/api/v1/applications/{appId}/auth-providers/magic-link
+PATCH https://api.authaz.io/api/v1/applications/{appId}/auth-providers/magic-link
 X-API-Key: sk_live_…
 
 { "enabled": true }
@@ -72,7 +72,7 @@ X-API-Key: sk_live_…
 M2M (issue a service credential):
 
 ```http
-POST https://api.rorix.io/api/v1/applications/{appId}/m2m-credentials
+POST https://api.authaz.io/api/v1/applications/{appId}/m2m-credentials
 X-API-Key: sk_live_…
 
 { "name": "ingest-worker", "permissions": ["events:write"] }
@@ -99,7 +99,7 @@ Or apply YAML — see `authaz-cli-yaml`.
 For M2M: hit the token endpoint with the issued credentials:
 
 ```bash
-curl -X POST https://auth.rorix.io/universal/oauth2/token \
+curl -X POST https://auth.example.com/universal/oauth2/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=client_credentials" \
   -d "client_id=…" -d "client_secret=…" -d "scope=events:write"
