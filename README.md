@@ -36,7 +36,7 @@ Skills install into your agent's local skills directory automatically. See [skil
 | `authaz-permission-check` | Calling the authorization API to check a user's permission |
 | `authaz-multi-tenant` | Reading `tenant_id` from the JWT, scoping queries by tenant |
 | `authaz-management-api` | Using the SDK to manage users, roles, tenants, invitations |
-| `authaz-cli-yaml` | Configuring Authaz declaratively with the `authaz` CLI |
+| `authaz-cli` | Configuring an Authaz application with the `authaz` CLI — login, OAuth/MFA/branding/etc., declarative YAML apply |
 | `authaz-troubleshoot-oauth` | Debugging redirect_uri, PKCE, JWKS, or token errors |
 
 The `references/` directory at the repo root holds shared lookup tables (endpoints, error codes, glossary) the skills point your agent at. Install the whole bundle if you want the references available alongside individual skills.

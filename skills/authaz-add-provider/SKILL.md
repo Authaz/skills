@@ -88,7 +88,7 @@ authaz oauth enable --provider google
 authaz mfa require    # password provider only
 ```
 
-Or apply YAML — see `authaz-cli-yaml`.
+Or apply declarative YAML — see `authaz-cli`.
 
 ## Step 4 — Verify
 
@@ -120,4 +120,4 @@ You should get an `access_token` back.
 - Authentication overview: <https://authaz.io/docs/authentication/overview>
 - Per-provider docs: `https://authaz.io/docs/authentication/{password,oauth2,social-login,magic-link,m2m,api-keys}`
 - `references/endpoints.md`, `references/error-codes.md`
-- `authaz-cli-yaml` for declarative config
+- `authaz-cli` for declarative config and per-section commands
