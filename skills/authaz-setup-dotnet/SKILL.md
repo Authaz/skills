@@ -5,6 +5,8 @@ description: Use when adding Authaz to an ASP.NET Core app (net8/9/10). Covers t
 
 # Set up Authaz in an ASP.NET Core app — single shot
 
+> **Last verified:** `Authaz.Sdk` v0.1.2 (2026-05-21). The .NET SDK is pre-1.0 — APIs are unstable. If `AddAuthazSdk`, `IAuthazClient`, or `AuthazResult<T>` look different in the installed package, trust the SDK source and report the drift.
+
 There are **two distinct integrations** for Authaz on .NET. Pick the one that matches the user's intent before writing code; they have nothing in common.
 
 | Goal | What you wire up | Authaz packages |
@@ -290,7 +292,18 @@ You should see a JSON array of users. If you get 401, the API key is missing or 
 
 ---
 
-## Hard rules — do not violate
+## Production checklist
+
+When you move beyond `localhost`:
+
+- [ ] **Add the prod callback URL** in the Dashboard's Allowed callback URLs: `https://your-app.com/signin-oidc` (the default OIDC callback path).
+- [ ] **Move `ClientSecret` and `ApiKey` to a secrets manager** (Azure Key Vault, AWS Secrets Manager, env vars). Never commit `appsettings.json` with secrets.
+- [ ] **HTTPS only.** ASP.NET's OIDC middleware sets `Secure` cookies; plain HTTP breaks them.
+- [ ] **Behind a reverse proxy?** Call `app.UseForwardedHeaders(new() { ForwardedHeaders = ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedFor })` before `UseAuthentication()`, otherwise OIDC will build callback URLs as `http://` and the IdP will reject them.
+- [ ] **Custom identity domain?** Update `Authaz:Authority` in the appropriate environment's `appsettings.{Environment}.json` and confirm the same custom domain is configured in the Dashboard.
+- [ ] **Set `Cookie.SameSite` and `Cookie.SecurePolicy`** on `AddCookie` if needed for cross-site flows — defaults are `Lax` + `Always`, usually right.
+
+## Anti-patterns
 
 - **Don't wrap SDK calls in `try/catch` looking for an `AuthazException`.** It doesn't exist. The SDK returns `AuthazResult<T>` and never throws on logical errors.
 - **Don't use `result.IsError`.** It's `result.IsSuccess` (check for true) or check `result.Error != null`.

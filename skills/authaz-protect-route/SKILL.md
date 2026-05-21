@@ -11,30 +11,46 @@ For when Authaz is already wired up and you just need to add another protected r
 
 | Where the user comes from | Where to enforce |
 |---|---|
-| Browser, full page navigation | **Server-side** (middleware, `[Authorize]`, `requireUser`) — never client-only |
+| Browser, full page navigation | **Server-side** (middleware, `[Authorize]`, `/api/auth/me` check) — never client-only |
 | Browser, fetching from your API | Server-side on the API — the SPA can hint by hiding UI but cannot be the gate |
 | Service-to-service (M2M) | API key or M2M access token check, not a user session |
 
-A common mistake: gating a page with only a `useRequireUser` hook in React. That redirects after the page loads — a user with the source can read the page's secrets in transit. **Always gate on the server too.**
+A common mistake: gating a page with only a client-side hook. The hook redirects *after* the page loads — a user with the source can read the page's secrets in transit. **Always gate on the server too.**
 
-## Step 2 — Apply the framework primitive
+## Step 2 — Pick the right `@authaz/react` primitive
+
+These are the exported hooks/components from `@authaz/react` v1.9 (verified in `packages/react/src/index.tsx`):
+
+| Export | Shape | Use when |
+|---|---|---|
+| `useAuthaz()` | `{ user, isAuthenticated, isLoading, login(), logout(), ... }` | Most general — call from any component inside `<AuthazProvider>` |
+| `useUser()` | `AuthazUser \| null` | You just want the user object |
+| `useIsAuthenticated()` | `boolean` | Toggling UI on/off based on auth |
+| `useIsLoading()` | `boolean` | Show a spinner while the session resolves |
+| `useRequireAuth(opts?)` | `void` (side effect) | In a component that should be auth-only — auto-redirects to login |
+| `useRequireUser(opts?)` | `AuthazUser` (guaranteed non-null) | Same as `useRequireAuth` *and* returns the user in one call |
+| `useLogin()` | `(returnTo?) => void` | Just the login trigger |
+| `useLogout()` | `(returnTo?) => void` | Just the logout trigger |
+| `<ProtectedRoute>` | Component | Wrap children that require auth |
+| `<GuestRoute>` | Component | Wrap children that should hide when signed in (e.g., sign-up page) |
+
+Both `useRequireAuth` and `useRequireUser` accept `{ redirectTo?: string }` to customize where to send an unauthenticated user.
+
+## Step 3 — Apply the framework primitive
 
 ### Next.js (App Router) — client component
 
 ```tsx
 "use client";
-import { useRequireAuth, useAuthaz } from "@authaz/react";
+import { useRequireUser } from "@authaz/react";
 
 export default function AdminPage() {
-  useRequireAuth();
-  const { user } = useAuthaz();
-  return <h1>Admin — {user?.email}</h1>;
+  const user = useRequireUser();      // redirects if signed out; returned user is non-null
+  return <h1>Admin — {user.email}</h1>;
 }
 ```
 
-`useRequireAuth()` redirects unauthenticated visitors through `/api/auth/login`.
-
-For server-side checks (route handlers), call the handler's `/api/auth/me` from the request to confirm the session, or read the session cookie via `next/headers` and decode the access token. Don't expect a `requireUser` helper in `@authaz/next` — there isn't a stable one beyond the React hooks.
+For server-side checks (server components, route handlers), call the handler's `/api/auth/me` from the request to confirm the session — that's the supported path. There's no `@authaz/next` server helper beyond the route handler today.
 
 ### Hono
 
@@ -90,7 +106,7 @@ Or `[Authorize]` on a controller method. For role-based:
 
 For permission checks beyond simple role membership, see `authaz-permission-check`.
 
-## Step 3 — Verify
+## Step 4 — Verify
 
 For each protected route:
 

@@ -5,6 +5,8 @@ description: Use when adding Authaz authentication to a Hono backend on Node (wi
 
 # Set up Authaz in a Hono backend — single shot
 
+> **Last verified:** `@authaz/hono` v1.9.10 (2026-05-21). If the installed SDK exports don't match, trust the SDK source over this skill and report the drift.
+
 Use this skill when the user wants Authaz wired into a Hono server in one pass. Code is taken verbatim from `authaz-sdk-js/examples/react-hono/server/`.
 
 This skill covers the **server only**. If the user is wiring a React SPA against this server, hand off to `authaz-setup-react` after this skill finishes — both halves are the same example.
@@ -150,7 +152,19 @@ If you're pairing with a Vite SPA, you'll also need the SPA-side callback page a
 
 For other failures hand off to `authaz-troubleshoot-oauth`.
 
-## Hard rules — do not violate
+## Production checklist
+
+When you move beyond `localhost`:
+
+- [ ] **Add the prod callback URL** to the Dashboard's Allowed callback URLs. The URL the *browser* lands on — if a CDN/SPA is in front, that's its domain, not the Hono server's.
+- [ ] **Move env vars to your hosting platform's secret store.** Don't commit `.env`.
+- [ ] **HTTPS only.** Session cookies are `Secure`.
+- [ ] **`X-Forwarded-Proto: https`** must reach Hono so `Secure` cookies set correctly. With `@hono/node-server`, ensure the proxy forwards it.
+- [ ] **Same-origin or CORS.** If the browser fetches `/api/auth/*` from a different origin than the Hono server, enable CORS with `credentials: true` and an explicit allowed origin (no wildcards).
+- [ ] **Custom identity domain?** Pass `authazDomain` to `createAuthazHandler` and configure the same custom domain in the Dashboard.
+- [ ] **Drop debug.** `debug: process.env.NODE_ENV === "development"` already handles it, but verify no upstream logs include tokens.
+
+## Anti-patterns
 
 - **Never leak `AUTHAZ_CLIENT_SECRET` or `AUTHAZ_ORGANIZATION_ID` to the browser.** Server-only.
 - **Never sign your own session cookies.** The handler does it.

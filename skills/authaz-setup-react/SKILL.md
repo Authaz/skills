@@ -5,6 +5,8 @@ description: Use when adding Authaz to a React SPA (Vite + TanStack Router). Sin
 
 # Set up Authaz in a React SPA — single shot
 
+> **Last verified:** `@authaz/react` v1.9.10 (2026-05-21). If the installed SDK exports don't match, trust the SDK source over this skill and report the drift.
+
 Use this skill when the user wants Authaz wired into a Vite + React SPA in one pass. Code is taken verbatim from `authaz-sdk-js/examples/react-hono/src/`.
 
 The SPA is **client-side only**. It needs a backend running the Authaz handler at `/api/auth/*`. The example pairs with a Hono server — same repo.
@@ -286,7 +288,18 @@ If `/dashboard` flashes the redirect before settling, the `beforeLoad` is doing 
 
 For other failures hand off to `authaz-troubleshoot-oauth`.
 
-## Hard rules — do not violate
+## Production checklist
+
+When you move beyond `localhost`:
+
+- [ ] **Same origin in prod.** Easiest: serve the SPA from the same origin as the backend (the Hono example does this via `serveStatic`). Then no proxy, no CORS.
+- [ ] **If different origins**: configure CORS with `credentials: true` and the exact SPA origin (no wildcards). Every `fetch` must use `credentials: "include"`.
+- [ ] **Add the prod browser-landing URL** to the Dashboard's Allowed callback URLs — that's the URL the *browser* sees at `/auth/callback`, not the backend's.
+- [ ] **HTTPS only.** Session cookies are `Secure`.
+- [ ] **Drop the Vite proxy in `vite.config.ts`** for prod builds — only used in dev.
+- [ ] **Remove dev-only routes** like `/auth/callback` exposed by the dev server config; rely on the built SPA's routing.
+
+## Anti-patterns
 
 - **Never put any Authaz secret in the SPA bundle.** The SPA reads no Authaz env vars — that's the design.
 - **Always `credentials: "include"`** on fetches to `/api/auth/*` and any protected route. Without it the session cookie isn't sent.

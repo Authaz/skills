@@ -5,6 +5,8 @@ description: Use when adding Authaz authentication to a Next.js 14+/15 App Route
 
 # Set up Authaz in a Next.js app — single shot
 
+> **Last verified:** `@authaz/next` + `@authaz/react` v1.9.10 (2026-05-21). If the installed SDK exports don't match (function names, props, env var contract), trust the SDK source over this skill and report the drift.
+
 Use this skill when the user wants Authaz wired into a Next.js App Router app in one pass. The code below is taken verbatim from `authaz-sdk-js/examples/nextjs` — keep it that way. Do not improvise function names, props, or env vars from memory.
 
 If the project is **Pages Router only** (no `app/` directory), stop and tell the user that `@authaz/next` targets the App Router. Offer to add an `app/` directory alongside the existing `pages/`.
@@ -245,7 +247,18 @@ Almost every failure on the first run is one of:
 
 For anything else, hand off to `authaz-troubleshoot-oauth`.
 
-## Hard rules — do not violate
+## Production checklist
+
+When you move beyond `localhost`:
+
+- [ ] **Add the prod callback URL** in the Dashboard's Allowed callback URLs: `https://your-app.com/auth/callback` (exact match, including scheme).
+- [ ] **Move `AUTHAZ_*` env vars to your hosting platform's secret store** (Vercel project envs, AWS Secrets Manager, etc.). Don't commit `.env.local`.
+- [ ] **HTTPS only.** The SDK's session cookie is `Secure` — `http://your-app.com` will fail silently with empty `user`.
+- [ ] **Behind a reverse proxy or CDN?** Ensure `X-Forwarded-Proto: https` reaches Next.js (Vercel does this; raw Cloudflare in front of a bare server often doesn't).
+- [ ] **Custom identity domain?** Set `authazDomain` (and `authazIdentityDomain` if needed) on `createAuthazHandler` to your domain — and add the same custom domain in the Dashboard.
+- [ ] **Drop debug.** `debug: process.env.NODE_ENV === "development"` already disables verbose logs in prod, but double-check nothing logs the access token.
+
+## Anti-patterns
 
 - **Never put `AUTHAZ_CLIENT_SECRET` (or `AUTHAZ_ORGANIZATION_ID`) in a `NEXT_PUBLIC_*` var.** They're server-only.
 - **Never store tokens in `localStorage`.** The SDK uses HttpOnly cookies; that's the design.

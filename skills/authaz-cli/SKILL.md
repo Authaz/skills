@@ -5,6 +5,8 @@ description: Use when configuring an Authaz application with the `authaz` CLI �
 
 # Use the `authaz` CLI
 
+> **Last verified:** `Authaz.Cli` v0.1.0 (2026-05-21). The CLI is pre-1.0 — commands and flags can change. If `--help` shows different commands/flags than below, trust the CLI output and report the drift.
+
 `authaz` is a .NET global tool for configuring Authaz applications from the command line — and through declarative YAML for repeatable / version-controlled setups. Code is grounded in `authaz/Authaz.Cli/`.
 
 The CLI authenticates **per application** (device-code flow against the app's `client_id`). It doesn't use API keys for human use — but CI can shortcut with `AUTHAZ_API_TOKEN`. Credentials live encrypted at `~/.authaz/credentials.json`.

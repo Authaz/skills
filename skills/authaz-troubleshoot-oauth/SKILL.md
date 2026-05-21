@@ -49,7 +49,7 @@ Wrong `client_id`, wrong `client_secret`, or the secret was rotated. Check `apps
 
 The token was signed with a key your verifier hasn't fetched, or it has fetched and cached the wrong app's JWKS.
 
-- Confirm the JWKS URL: `https://auth.authaz.io/universal/.well-known/jwks/{client_id}.json`. Note the `client_id` is in the path — using the global `/.well-known/jwks.json` from another platform's docs gives you the wrong keys.
+- Confirm the JWKS URL: `https://auth.authaz.io/.well-known/jwks/{clientId}.json` (no `/universal/` prefix — verified in `authaz/Authaz.AuthServer/UniversalRoutes.cs`). The `clientId` is in the path; the legacy `/.well-known/jwks.json` exists for backwards compat but expects `?appId=` and is deprecated.
 - If you cache JWKS, set the cache TTL to no more than 1 hour and refetch on `kid` miss.
 - If a key was just rotated, force a refetch.
 
