@@ -36,7 +36,7 @@ Before handing off, check that the user has these four values from the Authaz Da
 
 Also confirm that the callback URL the browser will use (e.g., `http://localhost:3000/auth/callback` for Next.js, `http://localhost:5173/auth/callback` for Vite) is in the application's **Allowed callback URLs** list.
 
-If they don't have an Authaz account yet, point them at <https://authaz.io/docs/getting-started>.
+If they don't have an Authaz account yet, hand off to `authaz-signup` first. It covers signing up at the Dashboard, the auto-onboarded organization/application/tenant, and collecting the four credentials — then comes back here.
 
 The JS SDK defaults to `https://auth.authaz.io` (identity domain) and `https://api.authaz.io` (Management API). The .NET SDK defaults to `https://api.authaz.io`. Override only if the customer set up a custom domain.
 

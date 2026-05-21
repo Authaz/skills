@@ -26,7 +26,8 @@ Skills install into your agent's local skills directory automatically. See [skil
 
 | Skill | Use when |
 |---|---|
-| `authaz-quickstart` | Starting a new Authaz integration; not sure which other skill to pick |
+| `authaz-signup` | Brand-new to Authaz: sign up at the Dashboard, collect the four credentials, hand off to quickstart |
+| `authaz-quickstart` | Already have an Authaz account; not sure which setup skill applies to your stack |
 | `authaz-setup-nextjs` | Adding Authaz to a Next.js app (App Router) |
 | `authaz-setup-hono` | Adding Authaz to a Hono backend |
 | `authaz-setup-react` | Adding Authaz to a React SPA |
