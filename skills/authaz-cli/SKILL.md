@@ -5,27 +5,34 @@ description: Use when configuring an Authaz application with the `authaz` CLI �
 
 # Use the `authaz` CLI
 
-> **Last verified:** `Authaz.Cli` v0.1.0 (2026-05-21). The CLI is pre-1.0 — commands and flags can change. If `--help` shows different commands/flags than below, trust the CLI output and report the drift.
+> **Last verified:** `Authaz.Cli` v0.1.0 (2026-06-09), against the source at `authaz-cli/` (commit `19cc1c8`). The CLI is pre-1.0 — commands and flags can change. If `--help` shows different commands/flags than below, trust the CLI output and report the drift.
 
-`authaz` is a .NET global tool for configuring Authaz applications from the command line — and through declarative YAML for repeatable / version-controlled setups. Code is grounded in `authaz/Authaz.Cli/`.
+`authaz` is a .NET global tool for configuring Authaz applications from the command line — and through declarative YAML for repeatable / version-controlled setups. Code is grounded in the standalone repo `authaz-cli/` (GitHub: `Authaz/cli`), extracted from the old `authaz` monorepo. Project lives at `authaz-cli/Authaz.Cli/`.
 
 The CLI authenticates **per application** (device-code flow against the app's `client_id`). It doesn't use API keys for human use — but CI can shortcut with `AUTHAZ_API_TOKEN`. Credentials live encrypted at `~/.authaz/credentials.json`.
 
 ## Step 1 — Install
 
-The CLI ships as a .NET global tool (`PackAsTool=true`, `ToolCommandName=authaz`):
+The CLI ships as a .NET global tool (`PackAsTool=true`, `ToolCommandName=authaz`). **Requires the .NET 10 SDK.**
+
+> **Not on nuget.org yet.** As of v0.1.0 the package is *not* published to a public feed, so `dotnet tool install -g Authaz.Cli` fails with `is not found in NuGet feeds`. Install from source until it's published.
+
+Install from source (build, pack, then install from the local output):
 
 ```bash
-dotnet tool install -g Authaz.Cli
+cd authaz-cli                                   # the standalone repo (Authaz/cli)
+dotnet pack Authaz.Cli/Authaz.Cli.csproj -c Release -o ./artifacts
+dotnet tool install -g --add-source ./artifacts Authaz.Cli
 authaz --help
 ```
 
-Requires .NET 10 SDK. If installing from source while the package is pre-release:
+To upgrade a previously installed copy from a fresh pack, use `dotnet tool update -g --add-source ./artifacts Authaz.Cli`.
+
+Once the package is published to nuget.org, the one-liner will work:
 
 ```bash
-cd authaz/Authaz.Cli
-dotnet pack -c Release
-dotnet tool install -g --add-source ./bin/Release Authaz.Cli
+dotnet tool install -g Authaz.Cli   # available after publish
+authaz --help
 ```
 
 ## Step 2 — Authenticate
@@ -311,11 +318,14 @@ Then open the hosted Sign-In page for the application — the providers, brandin
 
 ## Source of truth
 
-- CLI entry: `authaz/Authaz.Cli/Program.cs` — every registered command and branch
-- Auth: `authaz/Authaz.Cli/Commands/Auth/`, `authaz/Authaz.Cli/Auth/CredentialStore.cs`
-- YAML apply: `authaz/Authaz.Cli/Commands/ApplyCommand.cs`
-- Per-section commands: `authaz/Authaz.Cli/Commands/{OAuth,Mfa,Branding,PasswordPolicy,…}/`
-- Project metadata: `authaz/Authaz.Cli/Authaz.Cli.csproj` (version, target framework, tool packaging)
+The live command surface is the authority — when in doubt, trust it over this skill:
+
+```bash
+authaz --help              # top-level commands
+authaz <command> --help    # flags for a branch, e.g. `authaz oauth --help`
+```
+
+If the CLI ever disagrees with this skill, the CLI wins — report the drift. The code lives in the `authaz-cli` repo (GitHub: `Authaz/cli`) if you need to dig deeper.
 
 ## References
 
