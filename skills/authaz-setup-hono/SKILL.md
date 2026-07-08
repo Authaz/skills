@@ -5,15 +5,14 @@ description: Use when adding Authaz authentication to a Hono backend on Node (wi
 
 # Set up Authaz in a Hono backend — single shot
 
-> **Last verified:** `@authaz/hono` v1.9.10 (2026-05-21). If the installed SDK exports don't match, trust the SDK source over this skill and report the drift.
+> **Last verified:** `@authaz/hono` v1.9.10 (2026-05-21). If installed SDK exports don't match, trust the SDK source over this skill and report the drift.
 
-Use this skill when the user wants Authaz wired into a Hono server in one pass. Code is taken verbatim from `authaz-sdk-js/examples/react-hono/server/`.
+Wires Authaz into a Hono server in one pass. Code lifted verbatim from `authaz-sdk-js/examples/react-hono/server/`.
 
-This skill covers the **server only**. If the user is wiring a React SPA against this server, hand off to `authaz-setup-react` after this skill finishes — both halves are the same example.
+- **Scope:** server only. Wiring a React SPA against this server → hand off to `authaz-setup-react` after this skill finishes (same example, other half).
+- **Runtime:** Bun / Cloudflare Workers / Vercel Edge — skill still applies, skip `@hono/node-server`, use the runtime's native server. Auth handler module is identical.
 
-If the project targets Bun, Cloudflare Workers, or Vercel Edge, this skill still applies but skip `@hono/node-server` and use the runtime's native server. The auth handler module is identical.
-
-## What the user must provide before you start
+## Required inputs — stop and ask if missing, they can't be inferred
 
 Three values from the Authaz Dashboard:
 
@@ -21,16 +20,13 @@ Three values from the Authaz Dashboard:
 |---|---|
 | `AUTHAZ_CLIENT_ID` | Dashboard → your application → Auth Flow Configuration |
 | `AUTHAZ_CLIENT_SECRET` | Same place. Shown once at creation — if lost, rotate it |
-| `AUTHAZ_TENANT_ID` | Dashboard → tenant. For single-tenant apps, use the default tenant Authaz created for your org |
+| `AUTHAZ_TENANT_ID` | Dashboard → tenant. Single-tenant apps use the default tenant Authaz created for the org |
 
-Plus, in the Authaz Dashboard, add the callback URL the browser will hit to **Allowed callback URLs**:
+Also add the browser-facing callback URL to Dashboard → **Allowed callback URLs**:
+- Server alone is the front door: `http://localhost:3000/auth/callback`
+- Vite SPA paired in front (default port): `http://localhost:5173/auth/callback`
 
-- If the server alone is the front door: `http://localhost:3000/auth/callback`
-- If a Vite SPA is paired in front (Vite default port): `http://localhost:5173/auth/callback`
-
-If any of these are missing, stop and ask — they cannot be inferred.
-
-The SDK defaults to `https://auth.authaz.io` and `https://api.authaz.com`. Override only if the customer set up a custom identity domain — add `authazIdentityDomain` to `createAuthazHandler()`. It's the only override that reliably affects every one of this handler's endpoints, including `/me` (which reads `config.authazIdentityDomain` directly, with no fallback). `apiDomain` has no effect on anything this handler calls — don't bother setting it here.
+**Domains:** SDK defaults to `https://auth.authaz.io` and `https://api.authaz.com`. Only override with a custom identity domain via `authazIdentityDomain` on `createAuthazHandler()` — it's the sole override that reliably affects every endpoint here, including `/me` (reads `config.authazIdentityDomain` directly, no fallback). `apiDomain` has no effect on anything this handler calls — don't set it here.
 
 ## Step 1 — Install
 
@@ -38,10 +34,9 @@ The SDK defaults to `https://auth.authaz.io` and `https://api.authaz.com`. Overr
 pnpm add hono @authaz/hono
 pnpm add -D @hono/node-server tsx
 ```
+Bun: replace `@hono/node-server` with `bun run`. Workers: skip both.
 
-For Bun, replace `@hono/node-server` with `bun run`. For Workers, skip both.
-
-## Step 2 — Write `.env`
+## Step 2 — `.env`
 
 ```
 AUTHAZ_CLIENT_ID=your_client_id
@@ -49,10 +44,9 @@ AUTHAZ_CLIENT_SECRET=your_client_secret
 AUTHAZ_TENANT_ID=your_tenant_id
 PORT=3000
 ```
-
 Add `.env` to `.gitignore`.
 
-## Step 3 — Write the source files
+## Step 3 — Source files
 
 ### `server/auth.ts`
 
@@ -68,8 +62,7 @@ export const authHandler = createAuthazHandler({
   debug: process.env.NODE_ENV === "development",
 });
 ```
-
-`afterLoginUrl` / `afterLogoutUrl` are where the user lands after the OAuth round-trip succeeds. Match them to actual routes in your app.
+`afterLoginUrl` / `afterLogoutUrl` = landing routes after the OAuth round-trip succeeds. Match to actual app routes.
 
 ### `server/index.ts`
 
@@ -116,15 +109,17 @@ console.log(`Server running at http://localhost:${port}`);
 serve({ fetch: app.fetch, port });
 ```
 
-The handler mount creates these endpoints under `/api/auth`:
+Endpoints created under `/api/auth`:
 
-- `GET /api/auth/login` — start the OAuth flow
-- `POST /api/auth/callback` — receive the auth code from the browser-side callback page
-- `POST /api/auth/logout` — end the session (POST-only by design, to prevent CSRF)
-- `GET /api/auth/me` — read the current user (returns 401 if signed out)
-- `POST /api/auth/refresh` — refresh the access token
+| Route | Purpose |
+|---|---|
+| `GET /api/auth/login` | start the OAuth flow |
+| `POST /api/auth/callback` | receive the auth code from the browser-side callback page |
+| `POST /api/auth/logout` | end the session (POST-only by design, to prevent CSRF) |
+| `GET /api/auth/me` | read the current user (401 if signed out) |
+| `POST /api/auth/refresh` | refresh the access token |
 
-Keep the prefix exactly `/api/auth`. The SDK's client (`@authaz/react`) and the standalone callback page both expect this path.
+Keep the prefix exactly `/api/auth` — `@authaz/react`'s client and the standalone callback page both expect this path.
 
 ### Optional — gating your own routes
 
@@ -145,8 +140,7 @@ const requireAuth = async (c: Context, next: Next) => {
 app.use("/api/protected/*", requireAuth);
 app.get("/api/protected/hello", (c) => c.json({ message: "hi, signed-in user" }));
 ```
-
-The handler exposes `/api/auth/me` precisely so business routes can re-check session state via that call instead of implementing their own cookie parsing or JWT verifier.
+`/api/auth/me` exists precisely so business routes can re-check session state via this call instead of implementing their own cookie parsing or JWT verifier.
 
 ## Step 4 — Run and verify
 
@@ -154,29 +148,29 @@ The handler exposes `/api/auth/me` precisely so business routes can re-check ses
 pnpm tsx watch server/index.ts
 ```
 
-Then:
-
-1. `curl http://localhost:3000/api/auth/me` → `401 Unauthorized`. The endpoint exists; the user just isn't signed in.
+1. `curl http://localhost:3000/api/auth/me` → `401 Unauthorized` (endpoint exists; just not signed in).
 2. Open `http://localhost:3000/api/auth/login` in a browser → redirects to `https://auth.authaz.io/...` → complete sign-in.
-3. After the callback, the browser has the Authaz session cookies. Reload `curl http://localhost:3000/api/auth/me` with the cookies (use the browser's DevTools to confirm there's no 401).
+3. After the callback, browser has Authaz session cookies. Reload `curl http://localhost:3000/api/auth/me` with cookies (use DevTools to confirm no 401).
 4. `curl -X POST http://localhost:3000/api/auth/logout` → clears cookies; `/me` is 401 again.
 
-If you're pairing with a Vite SPA, you'll also need the SPA-side callback page at `/auth/callback`. That's in `authaz-setup-react` — invoke it next.
+Pairing with a Vite SPA → also need the SPA-side callback page at `/auth/callback`; that's in `authaz-setup-react` — invoke it next.
 
 ## When something fails
 
-1. **`invalid_redirect_uri`** — the URL the browser sent is not on the application's allowed list. The Hono server runs on `:3000`, but if a Vite SPA proxies through, the *browser* URL is `:5173/auth/callback`. Add the URL the browser actually used.
-2. **CORS errors** — only happens if the SPA isn't proxied through the Hono server. The example uses a Vite proxy (`/api → :3000`) so there's no CORS. If you split origins, add `app.use("*", cors({ origin: "...", credentials: true }))`.
-3. **401 even after sign-in** — the browser dropped the cookie. Check `Secure`/`SameSite`: in dev, both servers must be on localhost. In prod, both must be HTTPS, same site.
-4. **Handler 404s under `/api/auth/...`** — the `app.route("/api/auth", authHandler)` line is missing or mounted under a different prefix.
+| Symptom | Cause / fix |
+|---|---|
+| `invalid_redirect_uri` | URL the browser sent isn't on the application's allowed list. Hono runs on `:3000`, but if a Vite SPA proxies through, the *browser* URL is `:5173/auth/callback` — add the URL the browser actually used. |
+| CORS errors | Only happens if the SPA isn't proxied through the Hono server. Example uses a Vite proxy (`/api → :3000`), so no CORS. If origins are split, add `app.use("*", cors({ origin: "...", credentials: true }))`. |
+| 401 even after sign-in | Browser dropped the cookie. Check `Secure`/`SameSite`: dev — both servers on localhost; prod — both HTTPS, same site. |
+| Handler 404s under `/api/auth/...` | `app.route("/api/auth", authHandler)` line missing or mounted under a different prefix. |
 
-For other failures hand off to `authaz-troubleshoot-oauth`.
+Other failures → hand off to `authaz-troubleshoot-oauth`.
 
 ## Production checklist
 
 When you move beyond `localhost`:
 
-- [ ] **Add the prod callback URL** to the Dashboard's Allowed callback URLs. The URL the *browser* lands on — if a CDN/SPA is in front, that's its domain, not the Hono server's.
+- [ ] **Add the prod callback URL** to the Dashboard's Allowed callback URLs — the URL the *browser* lands on (if a CDN/SPA is in front, that's its domain, not the Hono server's).
 - [ ] **Move env vars to your hosting platform's secret store.** Don't commit `.env`.
 - [ ] **HTTPS only.** Session cookies are `Secure`.
 - [ ] **`X-Forwarded-Proto: https`** must reach Hono so `Secure` cookies set correctly. With `@hono/node-server`, ensure the proxy forwards it.
@@ -190,11 +184,11 @@ When you move beyond `localhost`:
 - **Never sign your own session cookies.** The handler does it.
 - **Keep the mount at `/api/auth`.** The browser callback page, the `AuthazProvider` `basePath` default, and the SPA hooks all assume this path.
 - **Don't reimplement `/api/auth/me`.** The handler exposes it; use it for downstream auth checks.
-- **Don't add `AUTHAZ_IDENTITY_DOMAIN`** unless the customer has a custom identity domain. The SDK defaults to `https://auth.authaz.io`.
+- **Don't add `AUTHAZ_IDENTITY_DOMAIN`** unless the customer has a custom identity domain. SDK defaults to `https://auth.authaz.io`.
 
 ## Source of truth
 
-The code above is lifted from `authaz-sdk-js/examples/react-hono/server/`. The corresponding SPA is in `authaz-sdk-js/examples/react-hono/src/` — see `authaz-setup-react`.
+Code above is lifted from `authaz-sdk-js/examples/react-hono/server/`. Corresponding SPA is in `authaz-sdk-js/examples/react-hono/src/` — see `authaz-setup-react`.
 
 ## References
 

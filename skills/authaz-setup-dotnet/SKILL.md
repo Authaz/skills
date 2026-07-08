@@ -5,26 +5,24 @@ description: Use when adding Authaz to an ASP.NET Core app (net8/9/10). Covers t
 
 # Set up Authaz in an ASP.NET Core app — single shot
 
-> **Last verified:** `Authaz.Sdk` v0.1.2 (2026-05-21). The .NET SDK is pre-1.0 — APIs are unstable. If `AddAuthazSdk`, `IAuthazClient`, or `AuthazResult<T>` look different in the installed package, trust the SDK source and report the drift.
+> **Last verified:** `Authaz.Sdk` v0.1.2 (2026-05-21). Pre-1.0 SDK — APIs unstable. If `AddAuthazSdk`, `IAuthazClient`, or `AuthazResult<T>` differ from the installed package, trust the SDK source and report the drift.
 
-There are **two distinct integrations** for Authaz on .NET. Pick the one that matches the user's intent before writing code; they have nothing in common.
+Two distinct, unrelated integrations. Pick the one matching user intent before coding:
 
 | Goal | What you wire up | Authaz packages |
 |---|---|---|
-| **Sign users in** (web app with a login page) | The standard `Microsoft.AspNetCore.Authentication.OpenIdConnect` middleware against Authaz's hosted OIDC | (none — pure ASP.NET) |
-| **Call the Management API** (admin operations from your backend) | `Authaz.Sdk` from NuGet | `Authaz.Sdk` |
+| **Sign users in** (web app login page) | Standard `Microsoft.AspNetCore.Authentication.OpenIdConnect` middleware against Authaz's hosted OIDC | (none — pure ASP.NET) |
+| **Call the Management API** (admin ops from backend) | `Authaz.Sdk` from NuGet | `Authaz.Sdk` |
 
-If the user wants both, do them in order: sign-in first, Management API second. Each section below is independently single-shot.
+If both are wanted: sign-in first, Management API second. Each section is independently single-shot.
 
-> Note: the sign-in path uses Microsoft's standard OIDC stack directly (`AddOpenIdConnect`) — Authaz is just an OAuth 2.1 / OIDC provider, and the .NET SDK's OIDC support is that middleware, not an Authaz-specific wrapper.
+> The sign-in path is Microsoft's standard OIDC stack (`AddOpenIdConnect`) — Authaz is just an OAuth 2.1/OIDC provider; the .NET SDK has no Authaz-specific OIDC wrapper.
 
 ---
 
 ## Part A — Sign users in (OpenID Connect)
 
-### What the user must provide
-
-Three values from the Authaz Dashboard:
+### User must provide (from Authaz Dashboard)
 
 | Setting | Where it comes from |
 |---|---|
@@ -32,15 +30,15 @@ Three values from the Authaz Dashboard:
 | `ClientSecret` | Same place. Shown once at creation |
 | `Authority` | `https://auth.authaz.io` (default). Override only for a custom identity domain |
 
-Plus, in the Dashboard, add the callback URL to **Allowed callback URLs**. ASP.NET's OIDC handler defaults to `/signin-oidc`, so add `https://localhost:5001/signin-oidc` (or your dev port).
+Also add the callback URL in Dashboard → **Allowed callback URLs**. ASP.NET's OIDC handler defaults to `/signin-oidc`, so add `https://localhost:5001/signin-oidc` (or your dev port).
 
-### Step A.1 — Install
+### A.1 — Install
 
 ```bash
 dotnet add package Microsoft.AspNetCore.Authentication.OpenIdConnect
 ```
 
-### Step A.2 — Configure `appsettings.json`
+### A.2 — `appsettings.json`
 
 ```json
 {
@@ -52,9 +50,9 @@ dotnet add package Microsoft.AspNetCore.Authentication.OpenIdConnect
 }
 ```
 
-For production, move `ClientSecret` out of `appsettings.json` — use `dotnet user-secrets`, environment variables (`Authaz__ClientSecret`), or a secrets manager. Never commit it.
+Production: keep `ClientSecret` out of `appsettings.json` — use `dotnet user-secrets`, env vars (`Authaz__ClientSecret`), or a secrets manager. Never commit it.
 
-### Step A.3 — `Program.cs`
+### A.3 — `Program.cs`
 
 ```csharp
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -107,48 +105,48 @@ app.MapGet("/dashboard", (HttpContext ctx) => $"Signed in as {ctx.User.Identity!
 app.Run();
 ```
 
-Order matters: `UseAuthentication()` before `UseAuthorization()` before the endpoints. `RequireAuthorization()` is the per-endpoint gate; on controllers use `[Authorize]`.
+Order matters: `UseAuthentication()` → `UseAuthorization()` → endpoints. `RequireAuthorization()` is the per-endpoint gate; on controllers use `[Authorize]`.
 
-### Step A.4 — Run and verify
+### A.4 — Run and verify
 
 ```bash
 dotnet run
 ```
 
-Then in the browser:
+In the browser:
 
 1. `https://localhost:5001/` — public.
-2. `https://localhost:5001/dashboard` — redirects to `https://auth.authaz.io/...` → sign in → returns to `/dashboard` showing the user's email.
-3. Inspect cookies: there's an ASP.NET auth cookie set by `AddCookie()`. Tokens (access, refresh, id) are in the auth ticket if `SaveTokens = true`.
+2. `https://localhost:5001/dashboard` — redirects to `https://auth.authaz.io/...` → sign in → back to `/dashboard` showing the user's email.
+3. Cookies: an ASP.NET auth cookie is set by `AddCookie()`. Tokens (access, refresh, id) are in the auth ticket if `SaveTokens = true`.
 
-### Failure modes for sign-in
+### Failure modes — sign-in
 
-1. **Redirect-loop or `invalid_redirect_uri`** — the allowed-callback list in the Dashboard doesn't include `/signin-oidc` on the exact host+port the dev server uses.
-2. **`PKCE required`** — `UsePkce = true` is missing. Authaz mandates PKCE.
-3. **`Correlation failed`** on callback — the antiforgery cookie was dropped, usually because the dev server flipped between HTTP and HTTPS mid-session. Stick to HTTPS in dev.
+| Symptom | Cause |
+|---|---|
+| Redirect-loop or `invalid_redirect_uri` | Dashboard's allowed-callback list doesn't include `/signin-oidc` on the exact host+port the dev server uses |
+| `PKCE required` | `UsePkce = true` missing — Authaz mandates PKCE |
+| `Correlation failed` on callback | Antiforgery cookie dropped, usually from the dev server flipping HTTP/HTTPS mid-session. Stick to HTTPS in dev |
 
 ---
 
 ## Part B — Call the Management API from your backend
 
-### What the user must provide
-
-Two values from the Authaz Dashboard:
+### User must provide (from Authaz Dashboard)
 
 | Setting | Where it comes from |
 |---|---|
 | `ApiKey` | Dashboard → API Keys → Create. Shown once. Scoped to specific permissions |
-| `BaseAddress` | `https://api.authaz.io` (default for the hosted product) |
+| `BaseAddress` | `https://api.authaz.io` (default for hosted product) |
 
-`AuthazClientOptions` has no `ApplicationId` property — there is no global application-scoping option. If a specific operation needs to be scoped to an application, pass it as an explicit parameter to that call (e.g. `IApiKeysClient.CreateAppKeyAsync(applicationId, ...)`).
+`AuthazClientOptions` has no `ApplicationId` — no global application-scoping option. To scope an operation to an application, pass it as an explicit parameter (e.g. `IApiKeysClient.CreateAppKeyAsync(applicationId, ...)`).
 
-### Step B.1 — Install
+### B.1 — Install
 
 ```bash
 dotnet add package Authaz.Sdk
 ```
 
-### Step B.2 — Configure `appsettings.json`
+### B.2 — `appsettings.json`
 
 ```json
 {
@@ -159,16 +157,16 @@ dotnet add package Authaz.Sdk
 }
 ```
 
-(Rename `AuthazSample` to whatever your config section is — the SDK doesn't care.)
+(Rename `AuthazSample` to your config section — the SDK doesn't care.)
 
-For development:
+Development:
 
 ```bash
 dotnet user-secrets init
 dotnet user-secrets set "AuthazSample:ApiKey" "authaz_..."
 ```
 
-### Step B.3 — Strongly-typed options class
+### B.3 — Strongly-typed options class
 
 ```csharp
 // SampleOptions.cs
@@ -181,7 +179,7 @@ public class SampleOptions
 }
 ```
 
-### Step B.4 — `Program.cs` — register the SDK
+### B.4 — `Program.cs` — register the SDK
 
 ```csharp
 using Authaz.Sdk;
@@ -201,9 +199,9 @@ builder.Services.AddAuthazSdk(opts =>
 var app = builder.Build();
 ```
 
-`AddAuthazSdk(...)` registers `IAuthazClient` as a singleton along with the underlying `HttpClient`, retry policy, and auth handler. Let it own the `"Authaz"` `HttpClient` name — registering another one under that name shadows the SDK's.
+`AddAuthazSdk(...)` registers `IAuthazClient` as a singleton plus the underlying `HttpClient`, retry policy, and auth handler. Let it own the `"Authaz"` `HttpClient` name — registering another one under that name shadows the SDK's.
 
-### Step B.5 — Use `IAuthazClient` from endpoints
+### B.5 — Use `IAuthazClient` from endpoints
 
 ```csharp
 // ── Users ──────────────────────────────────────────────────────────────
@@ -250,69 +248,73 @@ static IResult ToError(AuthazError error) => error switch
 record CheckBody(string UserId, string Permission, Guid? TenantId = null);
 ```
 
-The SDK returns `AuthazResult<T>`:
+SDK returns `AuthazResult<T>`:
 
-- `result.IsSuccess` — boolean
-- `result.Value` — the response payload (null on failure)
-- `result.Error` — typed `AuthazError` (null on success)
+| Member | Meaning |
+|---|---|
+| `result.IsSuccess` | boolean |
+| `result.Value` | response payload (null on failure) |
+| `result.Error` | typed `AuthazError` (null on success) |
 
-**Always check `IsSuccess` first.** The SDK does not throw on logical errors (404, 403, validation). Wrapping calls in `try/catch` only masks the result-type contract.
+**Always check `IsSuccess` first.** The SDK doesn't throw on logical errors (404, 403, validation) — wrapping calls in `try/catch` only masks the result-type contract.
 
-### Available sub-clients on `IAuthazClient`
+### `IAuthazClient` sub-clients
 
-- `Users` — get, list, suspend, activate, sessions, role assignments
-- `Applications` — list, manage applications
-- `Tenants` — list, create, update tenants
-- `Authorization` — `.Roles`, `.Permissions` (including `CheckAsync`)
-- `Invitations` — send, list, pending count
-- `Email` — providers, templates
-- `Auth` — API keys, OAuth credentials
-- `Audit` — audit trail
+| Client | Covers |
+|---|---|
+| `Users` | get, list, suspend, activate, sessions, role assignments |
+| `Applications` | list, manage applications |
+| `Tenants` | list, create, update tenants |
+| `Authorization` | `.Roles`, `.Permissions` (incl. `CheckAsync`) |
+| `Invitations` | send, list, pending count |
+| `Email` | providers, templates |
+| `Auth` | API keys, OAuth credentials |
+| `Audit` | audit trail |
 
-See `authaz-sdk-dotnet/Authaz.Sdk/src/Resources/` for the full surface.
+Full surface: `authaz-sdk-dotnet/Authaz.Sdk/src/Resources/`.
 
-### Step B.6 — Run and verify
+### B.6 — Run and verify
 
 ```bash
 dotnet run
 curl http://localhost:5169/users?pageSize=20
 ```
 
-You should see a JSON array of users. If you get 401, the API key is missing or wrong. If you get 403, the key lacks the scope.
+Expect a JSON array of users. 401 → API key missing/wrong. 403 → key lacks the scope.
 
-### Failure modes for the SDK
+### Failure modes — SDK
 
-1. **`Unauthorized`** — `ApiKey` empty, mistyped, or revoked. Verify with `dotnet user-secrets list`.
-2. **`Forbidden`** — the API key doesn't have the scope for that endpoint. Grant in the Dashboard.
-3. **`Validation`** — the request body's shape doesn't match. The `AuthazError.Validation` carries a `Fields` collection with field-specific messages.
-4. **`NotFound`** when the ID looks right** — the API key might be scoped to a different application/tenant; the resource exists, but is invisible to this key.
+| Symptom | Cause |
+|---|---|
+| `Unauthorized` | `ApiKey` empty, mistyped, or revoked. Verify with `dotnet user-secrets list` |
+| `Forbidden` | API key lacks scope for that endpoint. Grant in Dashboard |
+| `Validation` | Request body shape mismatch; `AuthazError.Validation` carries a `Fields` collection with field-specific messages |
+| `NotFound` when the ID looks right | API key may be scoped to a different application/tenant; resource exists but is invisible to this key |
 
 ---
 
 ## Production checklist
 
-When you move beyond `localhost`:
-
-- [ ] **Add the prod callback URL** in the Dashboard's Allowed callback URLs: `https://your-app.com/signin-oidc` (the default OIDC callback path).
+- [ ] **Add prod callback URL** in Dashboard's Allowed callback URLs: `https://your-app.com/signin-oidc` (default OIDC callback path).
 - [ ] **Move `ClientSecret` and `ApiKey` to a secrets manager** (Azure Key Vault, AWS Secrets Manager, env vars). Never commit `appsettings.json` with secrets.
-- [ ] **HTTPS only.** ASP.NET's OIDC middleware sets `Secure` cookies; plain HTTP breaks them.
-- [ ] **Behind a reverse proxy?** Call `app.UseForwardedHeaders(new() { ForwardedHeaders = ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedFor })` before `UseAuthentication()`, otherwise OIDC will build callback URLs as `http://` and the IdP will reject them.
-- [ ] **Custom identity domain?** Update `Authaz:Authority` in the appropriate environment's `appsettings.{Environment}.json` and confirm the same custom domain is configured in the Dashboard.
-- [ ] **Set `Cookie.SameSite` and `Cookie.SecurePolicy`** on `AddCookie` if needed for cross-site flows — defaults are `Lax` + `Always`, usually right.
+- [ ] **HTTPS only** — ASP.NET's OIDC middleware sets `Secure` cookies; plain HTTP breaks them.
+- [ ] **Behind a reverse proxy?** Call `app.UseForwardedHeaders(new() { ForwardedHeaders = ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedFor })` before `UseAuthentication()`, otherwise OIDC builds callback URLs as `http://` and the IdP rejects them.
+- [ ] **Custom identity domain?** Update `Authaz:Authority` in the env's `appsettings.{Environment}.json` and confirm the same custom domain is configured in the Dashboard.
+- [ ] **Set `Cookie.SameSite`/`Cookie.SecurePolicy`** on `AddCookie` if needed for cross-site flows — defaults (`Lax` + `Always`) are usually right.
 
 ## Anti-patterns
 
-- **Don't wrap SDK calls in `try/catch` looking for an `AuthazException`.** It doesn't exist. The SDK returns `AuthazResult<T>` and never throws on logical errors.
-- **Don't use `result.IsError`.** It's `result.IsSuccess` (check for true) or check `result.Error != null`.
+- **Don't wrap SDK calls in `try/catch` looking for `AuthazException`.** Doesn't exist. SDK returns `AuthazResult<T>`, never throws on logical errors.
+- **Don't use `result.IsError`.** It's `result.IsSuccess` (check true) or `result.Error != null`.
 - **Don't bypass `UsePkce = true`.** Authaz requires PKCE on the authorization-code grant.
-- **Don't put `ClientSecret` or `ApiKey` in `appsettings.json` committed to source.** User secrets, env vars, or a manager.
-- **Don't add `AddAuthazAuthentication()` or any Authaz-shaped OIDC helper** — they don't exist. Use Microsoft's `AddOpenIdConnect`.
-- **Don't assume every resource ID is a `Guid`.** User, application, tenant, credential, role, and invitation IDs are all `System.Guid` on the typed client methods. `IPoliciesClient` is the exception — policy IDs are `string`.
+- **Don't put `ClientSecret`/`ApiKey` in committed `appsettings.json`.** Use user secrets, env vars, or a manager.
+- **Don't add `AddAuthazAuthentication()` or any Authaz-shaped OIDC helper** — doesn't exist. Use Microsoft's `AddOpenIdConnect`.
+- **Don't assume every resource ID is a `Guid`.** User, application, tenant, credential, role, and invitation IDs are all `System.Guid`. Exception: `IPoliciesClient` — policy IDs are `string`.
 
 ## Source of truth
 
-- The SDK code above is lifted from `authaz-sdk-dotnet/Authaz.Sdk.Sample/Program.cs` and `appsettings.json`.
-- The OIDC code is standard ASP.NET against the Authaz authority. There is no shipped OIDC sample in `authaz-sdk-dotnet`; if the customer hits a behavior question on the OIDC half, verify against the Microsoft OIDC handler docs.
+- SDK code above is lifted from `authaz-sdk-dotnet/Authaz.Sdk.Sample/Program.cs` and `appsettings.json`.
+- OIDC code is standard ASP.NET against the Authaz authority — no shipped OIDC sample in `authaz-sdk-dotnet`; for OIDC behavior questions, verify against Microsoft's OIDC handler docs.
 
 ## References
 

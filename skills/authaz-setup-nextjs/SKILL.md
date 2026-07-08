@@ -7,9 +7,9 @@ description: Use when adding Authaz authentication to a Next.js 14+/15 App Route
 
 > **Last verified:** `@authaz/next` + `@authaz/react` v2.1.0 (2026-05-21). If the installed SDK exports don't match (function names, props, env var contract), trust the SDK source over this skill and report the drift.
 
-Use this skill when the user wants Authaz wired into a Next.js App Router app in one pass. The code below is taken verbatim from `authaz-sdk-js/examples/nextjs` — keep it that way. Do not improvise function names, props, or env vars from memory.
+Wires Authaz into a Next.js App Router app in one pass. Code below is taken verbatim from `authaz-sdk-js/examples/nextjs` — keep it that way, don't improvise function names/props/env vars from memory.
 
-If the project is **Pages Router only** (no `app/` directory), stop and tell the user that `@authaz/next` targets the App Router. Offer to add an `app/` directory alongside the existing `pages/`.
+If the project is **Pages Router only** (no `app/` directory), stop — `@authaz/next` targets the App Router. Offer to add an `app/` directory alongside `pages/`.
 
 ## What the user must provide before you start
 
@@ -23,9 +23,11 @@ Three values from the Authaz Dashboard:
 
 Plus: in the Authaz Dashboard, add `http://localhost:3000/auth/callback` to the application's **Allowed callback URLs**. Add the production URL when you deploy.
 
-If any of these are missing, stop and ask for them — they cannot be inferred.
+**Confirmed in practice:** a freshly-created single-tenant app can have **zero** tenants under Dashboard → app → Tenants (no default tenant auto-provisioned). When that's the case, don't set `AUTHAZ_TENANT_ID` at all — omit both the env var *and* the `tenantId` property in the `createAuthazHandler` config below (not `tenantId: process.env.AUTHAZ_TENANT_ID!`, just leave the key out). Passing the key with an undefined value works too since it's optional, but omitting it is clearer about intent.
 
-The SDK defaults `authazDomain` and `authazIdentityDomain` to `https://auth.authaz.io` and `apiDomain` to `https://api.authaz.com`. Override only if the customer has a custom domain — add `authazDomain` / `apiDomain` options to the handler call in that case.
+If any of these are missing, stop and ask — they cannot be inferred.
+
+SDK defaults `authazDomain`/`authazIdentityDomain` to `https://auth.authaz.io` and `apiDomain` to `https://api.authaz.com`. Override only for a custom domain, via `authazDomain`/`apiDomain` on the handler call.
 
 ## Step 1 — Install
 
@@ -33,9 +35,7 @@ The SDK defaults `authazDomain` and `authazIdentityDomain` to `https://auth.auth
 pnpm add @authaz/next @authaz/react
 ```
 
-(Use `npm install` / `yarn add` if the project isn't on pnpm — match the project's package manager.)
-
-If the project doesn't have Tailwind yet, the example uses it. Skip the Tailwind bits if the user already has a styling solution.
+(Use `npm install` / `yarn add` if the project isn't on pnpm.) The example uses Tailwind — skip those bits if the project has its own styling solution.
 
 ## Step 2 — Write `.env.local`
 
@@ -45,11 +45,11 @@ AUTHAZ_CLIENT_SECRET=your_client_secret
 AUTHAZ_TENANT_ID=your_tenant_id
 ```
 
-Make sure `.env.local` is in `.gitignore` (Next.js's default `.gitignore` already covers it).
+Make sure `.env.local` is in `.gitignore` (Next.js's default already covers it).
 
 ## Step 3 — Write the source files
 
-Paths below assume `src/app/`. If the project has no `src/` dir, use `app/`/`components/` at the root instead — check before writing.
+Paths below assume `src/app/`. No `src/` dir → use `app/`/`components/` at the root instead — check before writing.
 
 ### `src/app/api/auth/[...authaz]/route.ts`
 
@@ -128,7 +128,7 @@ const CallbackPage = (): React.ReactNode => {
 export default CallbackPage;
 ```
 
-This page is the bridge between Authaz's GET-redirect and the handler's POST endpoint. **Do not make `/auth/callback` an API route** — the OAuth response arrives via browser redirect and needs the client-side POST to attach the code.
+Bridge between Authaz's GET-redirect and the handler's POST endpoint. **Do not make `/auth/callback` an API route** — the OAuth response arrives via browser redirect and needs the client-side POST to attach the code.
 
 ### `src/app/layout.tsx`
 
@@ -180,7 +180,7 @@ const DashboardPage = (): React.ReactNode => {
 export default DashboardPage;
 ```
 
-`useRequireAuth()` redirects unauthenticated visitors to `/api/auth/login`. Use it in any client component that should be authenticated-only. For gating many routes at once via middleware instead of per-page, use `authaz-protect-route`.
+`useRequireAuth()` redirects unauthenticated visitors to `/api/auth/login`. Use in any client component that should be authenticated-only. For gating many routes via middleware instead of per-page, use `authaz-protect-route`.
 
 ### Optional — `src/components/Navbar.tsx` for login/logout buttons
 
@@ -215,7 +215,7 @@ export const Navbar = (): React.ReactNode => {
 };
 ```
 
-`login()` / `logout()` from `useAuthaz()` are the canonical client-side handles for triggering the flow — use them instead of constructing the URLs by hand.
+`login()` / `logout()` from `useAuthaz()` are the canonical client-side handles for triggering the flow — use them instead of constructing URLs by hand.
 
 ## Step 4 — Run and verify
 
@@ -230,7 +230,13 @@ Then in the browser:
 3. Lands back on `/dashboard` showing the signed-in user's email.
 4. Click **Logout** → cleared session, back at `/`.
 
-If you don't have a Navbar, navigate manually:
+**Confirmed in practice — the login form needs its own app user, not your Dashboard account.** The Authaz login page (`auth.authaz.io/auth/providers`) authenticates *end users of the application*, a completely separate identity space from the Dashboard account you used to `authaz login`/`authaz apply`. Signing in with your Dashboard org-owner credentials on that form fails with "Incorrect email or password" — expected, not a bug. Click **Sign up** on that same page to create a test end user first (email + password, then an emailed verification code — the form won't submit until it's entered). Only after that does **Sign in** succeed and redirect to `/dashboard`.
+
+**If testing with browser automation (e.g. Playwright), watch for autofill clobbering the email field.** A browser with a saved password for the Dashboard account will silently autofill it into the login form's email field, overwriting whatever you navigated with. Explicitly fill *both* the email and password fields with the test end-user's credentials right before submitting — don't assume a pre-filled value is the one you intended.
+
+**Dev port isn't always 3000.** If something else already owns port 3000, Next.js auto-shifts to 3001 (or higher) — but the callback URL registered with Authaz is still port-specific and won't match, giving `invalid_redirect_uri`. Either free port 3000, or add the actual dev URL (e.g. `http://localhost:3001/auth/callback`) to `spec.settings.redirectUris` in `app.yaml` and re-`authaz apply` before testing.
+
+No Navbar → navigate manually:
 - `http://localhost:3000/api/auth/login` triggers the flow (GET works, it's a redirect).
 - `http://localhost:3000/dashboard` directly tests the guard.
 - Logout is **POST-only** (same CSRF protection as callback) — typing `/api/auth/logout` in the address bar sends GET and 405s. Use the Navbar's `logout()` button, or `fetch("/api/auth/logout", { method: "POST" })` from the console.
@@ -240,7 +246,7 @@ If you don't have a Navbar, navigate manually:
 Almost every failure on the first run is one of:
 
 1. **`invalid_redirect_uri`** on the Authaz page — the URL the browser used isn't on the application's allowed callback list. Add the exact URL (with port, with/without trailing slash matching the request) in the Dashboard.
-2. **`invalid_grant`** on the callback — usually a double-POST (React StrictMode mounting twice). The example callback page is structured to avoid this; if you customized it, restore the `useEffect` body.
+2. **`invalid_grant`** on the callback — usually a double-POST (React StrictMode mounting twice). The example callback page is structured to avoid this; if customized, restore the `useEffect` body.
 3. **No login button / `useAuthaz` is undefined** — the `AuthazProvider` is missing or wraps too narrowly. It must wrap *all* components that call `useAuthaz()` or `useRequireAuth()`.
 4. **Cookie not set** — running over plain `http` in production? The session cookie is `Secure`. Use HTTPS in production. In dev, `localhost` is exempt.
 
@@ -267,7 +273,7 @@ When you move beyond `localhost`:
 
 ## Source of truth
 
-The code above is lifted from `authaz-sdk-js/examples/nextjs/`. If the SDK ships a new major version, re-check the example before trusting this skill's snippets. The file layout there is:
+Code above is lifted from `authaz-sdk-js/examples/nextjs/`. If the SDK ships a new major version, re-check the example before trusting this skill's snippets. File layout there:
 
 ```
 src/

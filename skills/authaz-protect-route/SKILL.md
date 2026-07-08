@@ -19,7 +19,7 @@ A common mistake: gating a page with only a client-side hook. The hook redirects
 
 ## Step 2 — Pick the right `@authaz/react` primitive
 
-These are the exported hooks/components from `@authaz/react` v2.2.2 (verified in `packages/react/src/index.tsx`):
+Exported hooks/components from `@authaz/react` v2.2.2 (verified in `packages/react/src/index.tsx`):
 
 | Export | Shape | Use when |
 |---|---|---|

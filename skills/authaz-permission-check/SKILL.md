@@ -5,28 +5,20 @@ description: Use when a route or operation needs an authorization check — not 
 
 # Check a permission
 
-Authaz separates **authentication** (the JWT) from **authorization** (a runtime call). Authentication lives in the JWT — Authaz signs it, your app verifies the signature. Authorization is a runtime call to Authaz because role assignments change without re-issuing tokens.
+- Authaz splits **authentication** (JWT, signed by Authaz, verified by your app) from **authorization** (a runtime call). Role assignments change without re-issuing tokens, so authorization must be a live call, not a JWT read.
+- **Use the SDK, never raw HTTP.** JS and .NET SDKs hit different paths (`/api/v1/authorization/check` vs `/api/v1/authorization/explain`) with different request shapes.
 
-Use the SDK. **Do not call the authz endpoint with raw HTTP** — the JS SDK and the .NET SDK use different paths (`/api/v1/authorization/check` vs `/api/v1/authorization/explain`), and the request shapes differ.
+## 1. Pick the permission name
 
-## Step 1 — Pick the permission name
+- Model = `resource` + `action`. Examples: `resource:"users", action:"read"` · `resource:"invoices", action:"create"` · `resource:"settings", action:"update"`.
+- JS SDK: separate `resource`/`action` fields. .NET SDK: colon-joined `permission` string (e.g. `"invoices:approve"`) — same operation, different shape.
+- Resource singular vs plural (`invoice:approve` vs `invoices:approve`) — either works, just stay consistent.
 
-Authaz's authz model uses `resource` + `action`. Examples:
+## 2. Set up the SDK
 
-- `resource: "users", action: "read"`
-- `resource: "invoices", action: "create"`
-- `resource: "settings", action: "update"`
+Skip if `Authaz.Sdk` / `@authaz/sdk` already wired via `authaz-management-api`.
 
-The JS SDK splits them into separate fields. The .NET SDK takes a colon-joined `permission` string (e.g., `"invoices:approve"`). Same operation, different surface shape.
-
-Keep the resource singular when possible (`invoice:approve`) for consistency, or plural — just pick one and stay with it.
-
-## Step 2 — Set up the SDK
-
-If you already have `Authaz.Sdk` / `@authaz/sdk` wired up via `authaz-management-api`, skip this step.
-
-### .NET
-
+**.NET:**
 ```csharp
 builder.Services.AddAuthazSdk(opts =>
 {
@@ -35,8 +27,7 @@ builder.Services.AddAuthazSdk(opts =>
 });
 ```
 
-### JavaScript
-
+**JavaScript:**
 ```ts
 import { createAuthazClient } from "@authaz/sdk";
 
@@ -47,12 +38,11 @@ const authaz = createAuthazClient({
 });
 ```
 
-## Step 3 — Call check from the backend
+## 3. Call check server-side
 
-The check is server-side. **Never** call it from the browser — the API key would leak.
+**Never call from the browser** — the API key would leak.
 
-### JS — single check
-
+**JS — single check:**
 ```ts
 const result = await authaz.authz.check({
   userId: "user_01abc...",       // or `token: accessToken`
@@ -68,7 +58,6 @@ if (result.ok && result.data.allowed) {
 ```
 
 `CheckResult` shape:
-
 ```ts
 type CheckResult = {
   allowed: boolean;
@@ -77,8 +66,7 @@ type CheckResult = {
 };
 ```
 
-### JS — bulk check (preferred when checking multiple at once)
-
+**JS — bulk check** (preferred for multiple checks at once — one round-trip instead of several):
 ```ts
 const result = await authaz.authz.checkBulk({
   userId: "user_01abc...",
@@ -93,12 +81,7 @@ const result = await authaz.authz.checkBulk({
 // result.data.results: { permission: string; allowed: boolean }[]
 ```
 
-Cheaper than three single calls — one round-trip instead of three.
-
-### JS — convenience helper for token-mode
-
-If you have the user's access token (e.g., from the OIDC session), the SDK exposes a `can()` shorthand:
-
+**JS — `can()` convenience helper** (token-mode): wraps `check`, returns boolean directly, errors collapse to `false`. Use in hot paths where the trace isn't needed.
 ```ts
 const allowed: boolean = await authaz.authz.can(
   accessToken,
@@ -108,10 +91,7 @@ const allowed: boolean = await authaz.authz.can(
 );
 ```
 
-This wraps `check` and returns the boolean directly (errors collapse to `false`). Use it in hot paths where you don't need the trace.
-
-### .NET — single check
-
+**.NET — single check:**
 ```csharp
 var check = await authaz.Authorization.Permissions.CheckAsync(
     new CheckPermissionRequest(
@@ -122,42 +102,40 @@ var check = await authaz.Authorization.Permissions.CheckAsync(
 if (!check.IsSuccess || !check.Value!.Allowed)
     return Results.Forbid();
 ```
+.NET response includes a full audit trace (`RoleTrace`, `PolicyTrace`) — useful for debugging "why isn't this allowed".
 
-The .NET response shape includes a full audit trace (`RoleTrace`, `PolicyTrace`) — useful for debugging "why isn't this allowed".
-
-## Step 4 — Always pull subject + tenant from the token
+## 4. Always pull subject + tenant from the token (never from request input)
 
 ```ts
-// Get subject/tenant from token claims, NEVER from request input
 const userId  = decodedToken.sub;
 const tenant  = decodedToken.tenant_id;
 const allowed = await authaz.authz.can(accessToken, "invoices", "approve", tenant);
 ```
-
 ```csharp
 var userId   = User.FindFirst("sub")!.Value;
 var tenantId = User.FindFirst("tenant_id")?.Value;
 ```
+Token is the sole source of truth for both.
 
-Treat the token as the sole source of truth for both.
+## 5. Caching
 
-## Step 5 — Caching
+Check is fast but not free. For hot paths, cache **request-scoped only** (lifetime of the request) — never longer. Cross-request caching delays role-revocation propagation, which is usually a security bug.
 
-The check is fast but not free. For hot paths, cache the result for the **lifetime of the request** (request-scoped) — never longer. Caching across requests means a role revocation takes time to propagate, which is usually a security bug.
+## 6. Verify
 
-## Step 6 — Verify
-
-1. Assign the user the role that has the permission. Call the check → `allowed: true`.
-2. Revoke the role assignment (Dashboard → User → Remove role). Call the check → `allowed: false` **within seconds**, not next-token.
-3. In multi-tenant: assign in tenant A, check in tenant B — should be `false`. This proves you're passing `tenantId` correctly.
+1. Assign the user the role with the permission → check → `allowed: true`.
+2. Revoke the role (Dashboard → User → Remove role) → check → `allowed: false` **within seconds**, not next-token.
+3. Multi-tenant: assign in tenant A, check in tenant B → should be `false`. Proves `tenantId` is passed correctly.
 
 ## Anti-patterns
 
-- **Don't read `roles` from the JWT and skip the check.** Roles in the JWT are a snapshot at login time. Authoritative authorization is the SDK call.
-- **Don't put permission names in code as scattered magic strings.** Centralize them so renames are a single edit.
-- **Don't omit `tenantId` in multi-tenant.** Every. Time.
-- **Don't catch SDK errors and default to `allowed: true`.** Default to `false` — fail closed.
-- **Don't call the authz endpoint with raw HTTP.** The JS and .NET SDKs disagree on the path; use SDK methods.
+| Don't | Why |
+|---|---|
+| Read `roles` from the JWT and skip the check | JWT roles are a login-time snapshot; the SDK call is authoritative |
+| Scatter permission names as magic strings in code | Centralize so renames are a single edit |
+| Omit `tenantId` in multi-tenant | Every. Time. |
+| Catch SDK errors and default to `allowed: true` | Default to `false` — fail closed |
+| Call the authz endpoint with raw HTTP | JS/.NET SDKs disagree on path; use SDK methods |
 
 ## Source of truth
 

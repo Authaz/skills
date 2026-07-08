@@ -5,13 +5,13 @@ description: Use when the user wants to add Authaz to their project but hasn't n
 
 # Authaz quickstart — framework dispatch
 
-Your only job here is to figure out which `authaz-setup-*` skill applies and hand off. You are **not** setting anything up yourself.
+Job: detect the right `authaz-setup-*` skill and hand off. Do **not** set anything up yourself.
 
-If the user doesn't have an Authaz account yet, hand off to `authaz-signup` first — it covers signing up at the Dashboard and collecting the three credentials (`clientId`, `clientSecret`, `tenantId`). Then come back here.
+No Authaz account yet? Hand off to `authaz-signup` first (Dashboard signup + collecting `clientId`/`clientSecret`/`tenantId`), then return here.
 
 ## Step 1 — Detect the framework
 
-Look at the project root in this order. Stop at the first match.
+Check the project root in this order; stop at first match.
 
 | Signal | Framework | Hand off to |
 |---|---|---|
@@ -21,24 +21,27 @@ Look at the project root in this order. Stop at the first match.
 | Any `*.csproj` with `Microsoft.NET.Sdk.Web` | ASP.NET Core | `authaz-setup-dotnet` |
 | React + an SSR framework (Next/Remix/etc.) | The SSR framework wins | (e.g. Next.js) |
 
-If multiple match (e.g. a monorepo with Next.js *and* Hono), ask which one to set up first — don't try to do them all in one pass.
-
-If nothing matches, ask the user what stack they're on. The supported stacks are Next.js, Hono, React SPA, and ASP.NET Core. For anything else, they need a custom integration using `@authaz/sdk` (JS) or `Authaz.Sdk` (.NET) + standard OIDC middleware.
+- Multiple matches (e.g. monorepo with Next.js *and* Hono) → ask which to set up first; don't do them all in one pass.
+- No match → ask the user their stack. Supported: Next.js, Hono, React SPA, ASP.NET Core. Anything else → custom integration via `@authaz/sdk` (JS) or `Authaz.Sdk` (.NET) + standard OIDC middleware.
 
 ## Step 2 — Hand off
 
-Invoke the chosen setup skill. The SDK integration code itself doesn't branch on single- vs multi-tenant — every stack's setup passes the same optional `tenantId` value in config regardless. (The app's tenancy type itself is a Dashboard-level choice made at application creation and cannot be changed later; see `authaz-signup` Step 6.) The setup skill takes it from there.
+Invoke the chosen setup skill.
 
-## After setup
+- SDK integration code doesn't branch on single- vs multi-tenant — every stack's setup passes the same optional `tenantId` value in config regardless.
+- The app's tenancy type is a Dashboard-level choice made at application creation and cannot be changed later (see `authaz-signup` Step 6).
+- The setup skill takes it from there.
 
-Suggest the natural next steps:
+## After setup — suggest next steps
 
-- Different login method (Google, magic link, …)? → `authaz-add-provider`
-- More routes to gate? → `authaz-protect-route`
-- Runtime permission checks? → `authaz-permission-check`
-- Tenant-scoped queries / B2B SaaS? → `authaz-multi-tenant`
-- OAuth round-trip is failing? → `authaz-troubleshoot-oauth`
-- Configure providers/branding/etc. from the CLI? → `authaz-cli`
+| Need | Skill |
+|---|---|
+| Different login method (Google, magic link, …) | `authaz-add-provider` |
+| More routes to gate | `authaz-protect-route` |
+| Runtime permission checks | `authaz-permission-check` |
+| Tenant-scoped queries / B2B SaaS | `authaz-multi-tenant` |
+| OAuth round-trip failing | `authaz-troubleshoot-oauth` |
+| Configure providers/branding/etc. from CLI | `authaz-cli` |
 
 ## Anti-patterns
 
