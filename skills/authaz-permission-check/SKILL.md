@@ -7,7 +7,7 @@ description: Use when a route or operation needs an authorization check — not 
 
 Authaz separates **authentication** (the JWT) from **authorization** (a runtime call). Authentication lives in the JWT — Authaz signs it, your app verifies the signature. Authorization is a runtime call to Authaz because role assignments change without re-issuing tokens.
 
-Use the SDK. **Do not call the authz endpoint with raw HTTP** — the JS SDK and the .NET SDK use different paths (`/v1/authorization/check` vs `/api/v1/authorization/explain`), and the request shapes differ.
+Use the SDK. **Do not call the authz endpoint with raw HTTP** — the JS SDK and the .NET SDK use different paths (`/api/v1/authorization/check` vs `/api/v1/authorization/explain`), and the request shapes differ.
 
 ## Step 1 — Pick the permission name
 
@@ -43,7 +43,6 @@ import { createAuthazClient } from "@authaz/sdk";
 const authaz = createAuthazClient({
   clientId: process.env.AUTHAZ_CLIENT_ID!,
   clientSecret: process.env.AUTHAZ_CLIENT_SECRET!,
-  organizationId: process.env.AUTHAZ_ORGANIZATION_ID!,
   apiKey: process.env.AUTHAZ_API_KEY, // optional; falls back to clientSecret
 });
 ```
@@ -63,7 +62,7 @@ const result = await authaz.authz.check({
 });
 
 // result is Result<CheckResult>
-if (result.ok && result.value.allowed) {
+if (result.ok && result.data.allowed) {
   // permitted
 }
 ```
@@ -91,7 +90,7 @@ const result = await authaz.authz.checkBulk({
   ],
 });
 
-// result.value.results: { permission: string; allowed: boolean }[]
+// result.data.results: { permission: string; allowed: boolean }[]
 ```
 
 Cheaper than three single calls — one round-trip instead of three.
@@ -140,7 +139,7 @@ var userId   = User.FindFirst("sub")!.Value;
 var tenantId = User.FindFirst("tenant_id")?.Value;
 ```
 
-**Don't** pull either from query strings, headers, or request bodies. The token is the source of truth.
+Treat the token as the sole source of truth for both.
 
 ## Step 5 — Caching
 
@@ -170,4 +169,3 @@ The check is fast but not free. For hot paths, cache the result for the **lifeti
 
 - `authaz-multi-tenant` — tenant resolution and isolation
 - `authaz-management-api` — wider SDK surface
-- `references/error-codes.md` — `Forbidden`, `Unauthorized`, etc.

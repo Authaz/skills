@@ -16,7 +16,7 @@ There are **two distinct integrations** for Authaz on .NET. Pick the one that ma
 
 If the user wants both, do them in order: sign-in first, Management API second. Each section below is independently single-shot.
 
-> Note: the .NET SDK ships *no* OIDC middleware. The sign-in path uses Microsoft's standard OIDC stack — Authaz is just an OAuth 2.1 / OIDC provider. Don't look for an `AddAuthazAuthentication()`; it doesn't exist.
+> Note: the sign-in path uses Microsoft's standard OIDC stack directly (`AddOpenIdConnect`) — Authaz is just an OAuth 2.1 / OIDC provider, and the .NET SDK's OIDC support is that middleware, not an Authaz-specific wrapper.
 
 ---
 
@@ -140,7 +140,7 @@ Two values from the Authaz Dashboard:
 | `ApiKey` | Dashboard → API Keys → Create. Shown once. Scoped to specific permissions |
 | `BaseAddress` | `https://api.authaz.io` (default for the hosted product) |
 
-Optionally `ApplicationId` if your operations need to specify an application via header.
+`AuthazClientOptions` has no `ApplicationId` property — there is no global application-scoping option. If a specific operation needs to be scoped to an application, pass it as an explicit parameter to that call (e.g. `IApiKeysClient.CreateAppKeyAsync(applicationId, ...)`).
 
 ### Step B.1 — Install
 
@@ -154,8 +154,7 @@ dotnet add package Authaz.Sdk
 {
   "AuthazSample": {
     "BaseUrl": "https://api.authaz.io",
-    "ApiKey": "",
-    "ApplicationId": ""
+    "ApiKey": ""
   }
 }
 ```
@@ -167,7 +166,6 @@ For development:
 ```bash
 dotnet user-secrets init
 dotnet user-secrets set "AuthazSample:ApiKey" "authaz_..."
-dotnet user-secrets set "AuthazSample:ApplicationId" "00000000-..."
 ```
 
 ### Step B.3 — Strongly-typed options class
@@ -180,7 +178,6 @@ public class SampleOptions
 {
     public string BaseUrl { get; set; } = "https://api.authaz.io";
     public string ApiKey { get; set; } = string.Empty;
-    public string ApplicationId { get; set; } = string.Empty;
 }
 ```
 
@@ -204,7 +201,7 @@ builder.Services.AddAuthazSdk(opts =>
 var app = builder.Build();
 ```
 
-`AddAuthazSdk(...)` registers `IAuthazClient` as a singleton along with the underlying `HttpClient`, retry policy, and auth handler. **Don't** also register a custom `HttpClient` named `"Authaz"` — you'll shadow the SDK's.
+`AddAuthazSdk(...)` registers `IAuthazClient` as a singleton along with the underlying `HttpClient`, retry policy, and auth handler. Let it own the `"Authaz"` `HttpClient` name — registering another one under that name shadows the SDK's.
 
 ### Step B.5 — Use `IAuthazClient` from endpoints
 
@@ -310,7 +307,7 @@ When you move beyond `localhost`:
 - **Don't bypass `UsePkce = true`.** Authaz requires PKCE on the authorization-code grant.
 - **Don't put `ClientSecret` or `ApiKey` in `appsettings.json` committed to source.** User secrets, env vars, or a manager.
 - **Don't add `AddAuthazAuthentication()` or any Authaz-shaped OIDC helper** — they don't exist. Use Microsoft's `AddOpenIdConnect`.
-- **Don't `Guid.Parse` IDs from API responses without checking the docs.** Many Authaz IDs are strings (`user_01abc…`), not GUIDs.
+- **Don't assume every resource ID is a `Guid`.** User, application, tenant, credential, role, and invitation IDs are all `System.Guid` on the typed client methods. `IPoliciesClient` is the exception — policy IDs are `string`.
 
 ## Source of truth
 

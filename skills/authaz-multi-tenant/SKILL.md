@@ -29,7 +29,8 @@ Via the Dashboard, or with the SDK:
 
 ```ts
 const result = await authaz.tenants.create({ name: "Acme Corp" });
-const tenantId = result.value?.id;
+if (!result.ok) throw result.error; // or use isOk(result)
+const tenantId = result.data.id;
 ```
 
 ### .NET
@@ -80,7 +81,7 @@ If you're already running an `@authaz/next` or `@authaz/hono` handler, `/api/aut
 import { useAuthaz } from "@authaz/react";
 
 const { user } = useAuthaz();
-// user.organizations[0].organizationId — the org/tenant the user belongs to in this session
+const tenantId = user?.tenantId; // the session tenant claim, exposed directly on AuthazUser
 ```
 
 ### .NET
@@ -116,7 +117,7 @@ A user changing tenants = **new login** with a different SDK `tenantId`. The tok
 2. Send the user to `/api/auth/login` again — they may or may not be re-prompted depending on session state.
 3. The new token's `tenant_id` claim reflects the new tenant.
 
-Don't try to swap tenants by editing your session store. The whole point of binding to the token is that it's tamper-proof.
+Swap tenants only by re-initiating login with the new `tenantId` — the binding is tamper-proof by design, so a client-side session-store edit can't substitute for it.
 
 ## Step 7 — Verify tenant isolation
 
@@ -147,4 +148,3 @@ If step 5 leaks data, your tenant filtering is broken. Fix it before shipping an
 ## References
 
 - `authaz-permission-check`, `authaz-management-api`
-- `references/glossary.md` — organization vs application vs tenant

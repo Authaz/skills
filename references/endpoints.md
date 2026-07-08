@@ -7,7 +7,7 @@ Use the SDKs — they hide URL differences between the JS and .NET clients. This
 - **Identity domain** (where end users sign in / the OAuth flow): `https://auth.authaz.io`
 - **Management API** (admin from your backend): `https://api.authaz.io`
 
-A customer can override either via custom domain. For the hosted product, accept the defaults — the JS SDK defaults `authazDomain` to `https://auth.authaz.io` and `apiDomain` to `https://api.authaz.io`; the .NET SDK defaults `BaseAddress` to `https://api.authaz.io`.
+A customer can override either via custom domain. The .NET SDK's `BaseAddress` defaults to `https://api.authaz.io`, matching the hosted product. The JS SDK's baked-in `apiDomain` default is the older `https://api.authaz.com` — pass `apiDomain: "https://api.authaz.io"` explicitly rather than relying on it.
 
 ## OAuth 2.1 + OIDC flow (at the identity domain)
 
@@ -17,7 +17,7 @@ The OAuth path is handled for you by the framework SDKs (`@authaz/next`, `@autha
 |---|---|
 | `GET /api/auth/login` | Start the OAuth flow (redirects to Authaz) |
 | `POST /api/auth/callback` | Receive the auth code from the browser-side callback page |
-| `GET /api/auth/logout` | End the session |
+| `POST /api/auth/logout` | End the session — POST-only, same CSRF protection as the callback endpoint; a `GET` gets `405` |
 | `GET /api/auth/me` | Read the current user (401 if signed out) |
 | `POST /api/auth/refresh` | Refresh the access token |
 
@@ -98,7 +98,6 @@ Neither SDK throws on logical errors (404, 403, validation). They throw only on 
 |---|---|
 | `AUTHAZ_CLIENT_ID` | yes |
 | `AUTHAZ_CLIENT_SECRET` | yes |
-| `AUTHAZ_ORGANIZATION_ID` | yes |
-| `AUTHAZ_TENANT_ID` | yes (use the default tenant for single-tenant apps) |
+| `AUTHAZ_TENANT_ID` | optional (`tenantId?: string` in `AuthazConfig`) — needed to scope OAuth flows; defaults to no tenant for single-tenant apps |
 
 The .NET SDK reads from `IConfiguration` — section name is up to you, but typically `Authaz:BaseUrl` + `Authaz:ApiKey`.

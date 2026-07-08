@@ -5,7 +5,7 @@ description: Use when adding Authaz to a React SPA (Vite + TanStack Router). Sin
 
 # Set up Authaz in a React SPA — single shot
 
-> **Last verified:** `@authaz/react` v1.9.10 (2026-05-21). If the installed SDK exports don't match, trust the SDK source over this skill and report the drift.
+> **Last verified:** `@authaz/react` v2.1.0 (2026-05-21). If the installed SDK exports don't match, trust the SDK source over this skill and report the drift.
 
 Use this skill when the user wants Authaz wired into a Vite + React SPA in one pass. Code is taken verbatim from `authaz-sdk-js/examples/react-hono/src/`.
 

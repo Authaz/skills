@@ -1,11 +1,11 @@
 ---
 name: authaz-signup
-description: Use when the user is brand-new to Authaz and needs to create their Authaz account before integrating. Walks the customer through Dashboard signup, the auto-onboarded organization/application/tenant, collecting the four credentials, and adding callback URLs. Hand off to authaz-quickstart afterward. Triggers on "I'm new to Authaz", "how do I sign up to Authaz", "create Authaz account", "first time setting up Authaz".
+description: Use when the user is brand-new to Authaz and needs to create their Authaz account before integrating. Walks the customer through Dashboard signup, the auto-provisioned organization, creating their first application via the CLI, collecting the three core credentials (and the organization ID for Management API use), and adding callback URLs. Hand off to authaz-quickstart afterward. Triggers on "I'm new to Authaz", "how do I sign up to Authaz", "create Authaz account", "first time setting up Authaz".
 ---
 
 # Become a new Authaz customer
 
-This skill is the **front of the funnel**: before the customer can integrate Authaz into their app, they need an Authaz account, an organization, and an application. The good news is that the Dashboard creates the organization, first application, and first tenant **automatically on first login** (`DashboardOnboardingService.OnboardIfNeededAsync`).
+This skill is the **front of the funnel**: before the customer can integrate Authaz into their app, they need an Authaz account, an organization, and an application. Signing up and completing first login auto-provisions their **organization**, with them as **Owner** (`DashboardOnboardingService.OnboardIfNeededAsync`). They create their **first application** themselves, in Step 3, via the CLI — takes one command.
 
 If the user already has an Authaz account and just needs to integrate, skip this skill and run `authaz-quickstart` directly.
 
@@ -25,38 +25,80 @@ If the Dashboard's signup provider requires it (it does by default), they get a 
 
 If the link expired or the email never arrived, they can request a resend from the sign-in page.
 
-## Step 3 — Auto-onboarding (happens on first sign-in)
+## Step 3 — Create the first application via the CLI
 
-On first sign-in, the Dashboard provisions everything the customer needs to start integrating:
+First sign-in auto-provisions the customer's **organization** — they land as **Owner**, org already selected. The application itself they create with one `apply` call. Drive this through `authaz` (see `authaz-cli` for the full reference) rather than the Dashboard:
 
-1. **An organization** — your Authaz tenant. The customer is the **Owner**.
-2. **A first application** — named `{OrgName} App`, single-tenant. This is what they'll integrate against.
-3. **A default tenant** — bound to the organization (used as `tenantId` in SDK config).
-4. **A system API key** — provisioned for Dashboard-internal use. The customer doesn't see it directly; they'll create their own Management API key in Step 5 if needed.
-5. **Owner-role grants** — on the new org, the new app, and the new tenant.
+```bash
+dotnet tool install --global Authaz.Cli
+authaz login                              # device-flow login against the account just created
+authaz whoami                             # confirm identity + org
+```
 
-The customer lands in the Dashboard already wired up. No "first-run wizard" — just navigate to the application they were given and pull the credentials.
+**If this identity belongs to more than one organization** (an existing customer with several orgs — not a brand-new signup, which only ever has the one auto-provisioned org), `authaz whoami`'s "Current organization" is just whatever org was last active on that profile. `authaz apply` creates the new application there **silently, with no prompt to confirm** — it's easy to create the app in the wrong org without noticing. Before applying:
 
-## Step 4 — Take inventory in the Dashboard
+```bash
+authaz org list                # see every org this identity can act on
+authaz org switch <org-id>     # pick the right one explicitly (omit <org-id> to pick interactively)
+authaz whoami                  # re-confirm — "Current organization" should now match
+```
 
-Walk the customer through finding each value in the UI. You'll need all four:
+If it's not obvious which org the customer wants, ask before running `authaz apply` — creating the application in the wrong org means redoing credential creation and Dashboard callback config too.
 
-| Value | Where to find it |
-|---|---|
-| `clientId` | Dashboard → Applications → (their app) → **Auth Flow Configuration** |
-| `clientSecret` | Same page. Shown **once** at creation — if they didn't capture it, rotate from the same page |
-| `organizationId` | Dashboard → top-level (the URL bar contains it after sign-in), or **Settings → Organization** |
-| `tenantId` | Dashboard → Applications → (their app) → **Tenants**. The default tenant is preselected; copy its id |
+Write a minimal application YAML. Only the fields below are needed to get a working single-tenant app — see `authaz-cli`'s Application YAML reference for the full field list (password policy, session limits, invitations, etc.). **`enabled: true` under `settings` is required** — the application stays disabled without it, and it's the one field with no server-side default:
 
-If they plan to call the Management API (admin operations from their backend), they also need:
+```yaml
+# app.yaml
+apiVersion: authaz/v1
+kind: Application
+metadata:
+  name: my-app
+spec:
+  tenancy:
+    type: single_tenant
+  authentication:
+    providers:
+      emailPassword:
+        enabled: true
+    signup:
+      enabled: true
+    settings:
+      redirectUris:
+        - http://localhost:3000/auth/callback
+      enabled: true
+```
 
-| Value | Where to find it |
-|---|---|
-| Management API key | Dashboard → **API Keys** → Create. Shown **once**. Scope to the permissions actually needed |
+```bash
+authaz validate --file app.yaml
+authaz apply --file app.yaml --yes       # no metadata.id -> creates new; prints the new application id
+```
 
-## Step 5 — Add callback URLs
+Capture the printed application id — every following command needs it as `--application-id`.
 
-In the Dashboard, **Applications → (app) → Auth Flow Configuration → Allowed callback URLs**, add the URL the browser will hit after sign-in:
+## Step 4 — Mint credentials via the CLI
+
+Each of these is shown **once** — capture immediately:
+
+```bash
+authaz credential create --application-id <id> --name "<app-name>-credential" --quiet
+# line 1 = clientId, line 2 = clientSecret
+
+authaz apikey create --application-id <id> --name "<app-name>-mgmt-key" --quiet
+# only if calling the Management API — prints the plain-text key
+```
+
+`tenantId` isn't in the exported YAML or on any CLI command yet — pull it from the Dashboard: **Applications → (app) → Tenants**, copy the default tenant's id. It's optional for single-tenant apps; omit the env var entirely rather than passing an empty string.
+
+`organizationId` (Management API / org-switching only, not basic SDK setup): from the Dashboard URL bar after sign-in, or **Settings → Organization**.
+
+## Step 5 — Add more callback URLs (staging, prod)
+
+Step 3's `app.yaml` already registered the dev callback URL. Add each new environment's URL to the same `spec.settings.redirectUris` list, then re-apply:
+
+```bash
+authaz validate --file app.yaml
+authaz apply --file app.yaml --application-id <id>
+```
 
 | Stack | Add these |
 |---|---|
@@ -72,10 +114,13 @@ The list must contain the **exact** URL the browser sends — trailing slash, po
 
 Their first app was created as **single-tenant**. That's fine for consumer apps and internal tools.
 
-If they're building **B2B SaaS** (each customer = a tenant inside their app), they want **multi-tenant**. Tenancy type is set at application creation and **cannot be changed later**. To go multi-tenant:
+If they're building **B2B SaaS** (each customer = a tenant inside their app), they want **multi-tenant**. Tenancy type is set at application creation and **cannot be changed later**. To go multi-tenant, apply a fresh YAML with no `metadata.id` (creates a new app) and `spec.tenancy.type: multi_tenant` / `mode: shared`:
 
-- Easiest path: create a second application via Dashboard → New application → choose **multi-tenant** → **shared pool** (default). Use this as their integration app and ignore the auto-created single-tenant one.
-- Or use the CLI: `authaz tenancy set --type multi_tenant --mode shared` (only works *before* anyone has signed into the app — see `authaz-cli`).
+```bash
+authaz apply --file multi-tenant-app.yaml   # no metadata.id -> creates new, doesn't touch the single-tenant one
+```
+
+Tenancy is YAML-only, like every other feature-level config — set it via `authaz apply`, not an imperative command. See `authaz-multi-tenant`.
 
 ## Step 7 — Hand off
 
@@ -95,10 +140,11 @@ Or, if the framework is already known, jump straight to the matching skill:
 ## Anti-patterns
 
 - **Don't have the customer sign up at `authaz.io`** (the marketing site) when they mean to integrate. The Dashboard is at `dashboard.authaz.io`.
-- **Don't try to provision the organization or application via API before the customer has an account.** Both are auto-created on first Dashboard sign-in. The Management API is for *post-account* operations.
+- **Don't try to provision the organization via API before the customer has an account.** It's auto-created on first Dashboard sign-in. The application is created *after* that, by the customer, via `authaz apply` (Step 3) — not auto-created, and not something to provision before the account exists either.
 - **Don't lose the `clientSecret`.** It's shown once. If lost, rotate it from the Dashboard — old secret stops working immediately, so coordinate the rotation with the integration timing.
 - **Don't paste the system API key into the customer's app.** That key is for the Dashboard's internal use. Customers create their own Management API key in Step 4.
 - **Don't pick single- vs multi-tenant without asking.** It's irreversible.
+- **Don't assume the "current organization" from `authaz whoami` is the intended one when the identity has multiple orgs.** `authaz apply` targets whatever org is currently active with no confirmation prompt — run `authaz org list` / `authaz org switch` first.
 
 ## Source of truth
 

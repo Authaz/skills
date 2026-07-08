@@ -116,14 +116,17 @@ import { createAuthazClient, isOk } from "@authaz/sdk";
 const authaz = createAuthazClient({
   clientId: process.env.AUTHAZ_CLIENT_ID!,
   clientSecret: process.env.AUTHAZ_CLIENT_SECRET!,
-  organizationId: process.env.AUTHAZ_ORGANIZATION_ID!,
   apiKey: process.env.AUTHAZ_API_KEY, // optional; falls back to clientSecret
-  // apiDomain / authazDomain default to https://api.authaz.io / https://auth.authaz.io
+  // apiDomain defaults to https://api.authaz.com; authazDomain (auth/OIDC flows) defaults to https://auth.authaz.io
+  // The SDK's built-in apiDomain default is stale (.com) relative to the hosted product's real API host (.io) —
+  // pass apiDomain explicitly rather than relying on the default.
 });
 
-const result = await authaz.users.list({ pageSize: 20 });
+// Org-management endpoints (users, roles, invitations) authenticate a human
+// actor in addition to the API key, so pass the signed-in user's access token.
+const result = await authaz.users.list({ pageSize: 20 }, { accessToken });
 if (isOk(result)) {
-  console.log(result.value); // typed list response
+  console.log(result.data); // typed list response
 } else {
   console.error(result.error.code, result.error.message);
 }
@@ -141,28 +144,31 @@ Sub-clients on the JS `AuthazClient`:
 
 ## Step 3 — Common operations (use the SDK; don't paraphrase HTTP)
 
-### Create / list users
+### Onboard / list users
+
+The JS SDK has no `users.create` — onboard people with `invitations.send(...)` (see below). To list existing users:
 
 ```ts
-// JS
-const created = await authaz.users.create({ email: "alice@example.com", name: "Alice" });
-const list    = await authaz.users.list({ pageSize: 50 });
+// JS — second arg carries the signed-in user's access token (required)
+const list = await authaz.users.list({ pageSize: 50 }, { accessToken });
 ```
 
 ```csharp
 // .NET
-var created = await authaz.Users.CreateAsync(new CreateUserRequest("alice@example.com", "Alice"));
-var list    = await authaz.Users.ListAsync(pageSize: 50);
+var list = await authaz.Users.ListAsync(pageSize: 50);
 ```
 
 ### Invite into a tenant
 
 ```ts
-const invite = await authaz.invitations.send({
-  email: "alice@example.com",
-  tenantId: "ten_...",
-  roleIds: ["role_..."],
-});
+const invite = await authaz.invitations.send(
+  {
+    email: "alice@example.com",
+    tenantId: "ten_...",
+    roleId: "role_...",
+  },
+  { accessToken },
+);
 ```
 
 ```csharp
@@ -178,7 +184,7 @@ const check = await authaz.authz.check({
   action: "approve",
   tenantId: "ten_...",
 });
-// check.value.allowed: boolean
+// check.data.allowed: boolean
 ```
 
 ```csharp
@@ -190,7 +196,7 @@ The JS SDK splits `resource` / `action`. The .NET SDK takes a colon-joined `perm
 
 ### Pagination
 
-JS list operations accept `{ pageSize, cursor }` and return `{ items, nextCursor }`. .NET equivalents take `pageSize` / `cursor` parameters and return `ListResponse<T>`. Loop until `nextCursor` is null/empty.
+JS list operations accept `{ pageSize, cursor }`. The response shape varies per endpoint — e.g. `ListUsersResponse` is `{ data, nextCursor, pageSize }` (see `management/types.ts` for the exact shape of each). .NET equivalents take `pageSize` / `cursor` parameters and return `ListResponse<T>`. Loop until `nextCursor` is null/empty.
 
 ## Step 4 — Verify
 

@@ -15,13 +15,12 @@ If the project targets Bun, Cloudflare Workers, or Vercel Edge, this skill still
 
 ## What the user must provide before you start
 
-Four values from the Authaz Dashboard:
+Three values from the Authaz Dashboard:
 
 | Env var | Where it comes from |
 |---|---|
 | `AUTHAZ_CLIENT_ID` | Dashboard → your application → Auth Flow Configuration |
 | `AUTHAZ_CLIENT_SECRET` | Same place. Shown once at creation — if lost, rotate it |
-| `AUTHAZ_ORGANIZATION_ID` | Dashboard → top-level (your Authaz org). **Required.** |
 | `AUTHAZ_TENANT_ID` | Dashboard → tenant. For single-tenant apps, use the default tenant Authaz created for your org |
 
 Plus, in the Authaz Dashboard, add the callback URL the browser will hit to **Allowed callback URLs**:
@@ -31,7 +30,7 @@ Plus, in the Authaz Dashboard, add the callback URL the browser will hit to **Al
 
 If any of these are missing, stop and ask — they cannot be inferred.
 
-The SDK defaults to `https://auth.authaz.io` and `https://api.authaz.io`. Override only if the customer set up a custom domain — add `authazDomain` / `apiDomain` to `createAuthazHandler()`.
+The SDK defaults to `https://auth.authaz.io` and `https://api.authaz.com`. Override only if the customer set up a custom identity domain — add `authazIdentityDomain` to `createAuthazHandler()`. It's the only override that reliably affects every one of this handler's endpoints, including `/me` (which reads `config.authazIdentityDomain` directly, with no fallback). `apiDomain` has no effect on anything this handler calls — don't bother setting it here.
 
 ## Step 1 — Install
 
@@ -48,7 +47,6 @@ For Bun, replace `@hono/node-server` with `bun run`. For Workers, skip both.
 AUTHAZ_CLIENT_ID=your_client_id
 AUTHAZ_CLIENT_SECRET=your_client_secret
 AUTHAZ_TENANT_ID=your_tenant_id
-AUTHAZ_ORGANIZATION_ID=your_organization_id
 PORT=3000
 ```
 
@@ -65,7 +63,6 @@ export const authHandler = createAuthazHandler({
   clientId: process.env.AUTHAZ_CLIENT_ID!,
   clientSecret: process.env.AUTHAZ_CLIENT_SECRET!,
   tenantId: process.env.AUTHAZ_TENANT_ID!,
-  organizationId: process.env.AUTHAZ_ORGANIZATION_ID!,
   afterLoginUrl: "/dashboard",
   afterLogoutUrl: "/",
   debug: process.env.NODE_ENV === "development",
@@ -86,6 +83,29 @@ const app = new Hono();
 // Mount auth routes — exposes /api/auth/{login,callback,logout,me,refresh}
 app.route("/api/auth", authHandler);
 
+// Bridge page: the IdP redirects here with ?code=&state= on a GET request,
+// but POST /api/auth/callback only reads form data, not query params.
+// This page re-POSTs those values as a form. Required only if the server
+// itself is the front door (no paired SPA already doing this).
+app.get("/auth/callback", (c) => {
+  return c.html(`<!doctype html>
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = "/api/auth/callback";
+  for (const [key, value] of params) {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = key;
+    input.value = value;
+    form.appendChild(input);
+  }
+  document.body.appendChild(form);
+  form.submit();
+</script>`);
+});
+
 // Your application routes go here, e.g.:
 // app.get("/api/me", async (c) => { ... });
 
@@ -100,7 +120,7 @@ The handler mount creates these endpoints under `/api/auth`:
 
 - `GET /api/auth/login` — start the OAuth flow
 - `POST /api/auth/callback` — receive the auth code from the browser-side callback page
-- `GET /api/auth/logout` — end the session
+- `POST /api/auth/logout` — end the session (POST-only by design, to prevent CSRF)
 - `GET /api/auth/me` — read the current user (returns 401 if signed out)
 - `POST /api/auth/refresh` — refresh the access token
 
@@ -126,7 +146,7 @@ app.use("/api/protected/*", requireAuth);
 app.get("/api/protected/hello", (c) => c.json({ message: "hi, signed-in user" }));
 ```
 
-The handler exposes `/api/auth/me` precisely so business routes can re-check session state without re-implementing cookie parsing. Don't roll your own JWT verifier — call `/api/auth/me`.
+The handler exposes `/api/auth/me` precisely so business routes can re-check session state via that call instead of implementing their own cookie parsing or JWT verifier.
 
 ## Step 4 — Run and verify
 
@@ -139,7 +159,7 @@ Then:
 1. `curl http://localhost:3000/api/auth/me` → `401 Unauthorized`. The endpoint exists; the user just isn't signed in.
 2. Open `http://localhost:3000/api/auth/login` in a browser → redirects to `https://auth.authaz.io/...` → complete sign-in.
 3. After the callback, the browser has the Authaz session cookies. Reload `curl http://localhost:3000/api/auth/me` with the cookies (use the browser's DevTools to confirm there's no 401).
-4. `curl http://localhost:3000/api/auth/logout` → clears cookies; `/me` is 401 again.
+4. `curl -X POST http://localhost:3000/api/auth/logout` → clears cookies; `/me` is 401 again.
 
 If you're pairing with a Vite SPA, you'll also need the SPA-side callback page at `/auth/callback`. That's in `authaz-setup-react` — invoke it next.
 
@@ -166,7 +186,7 @@ When you move beyond `localhost`:
 
 ## Anti-patterns
 
-- **Never leak `AUTHAZ_CLIENT_SECRET` or `AUTHAZ_ORGANIZATION_ID` to the browser.** Server-only.
+- **Never leak `AUTHAZ_CLIENT_SECRET` to the browser.** Server-only.
 - **Never sign your own session cookies.** The handler does it.
 - **Keep the mount at `/api/auth`.** The browser callback page, the `AuthazProvider` `basePath` default, and the SPA hooks all assume this path.
 - **Don't reimplement `/api/auth/me`.** The handler exposes it; use it for downstream auth checks.

@@ -19,7 +19,7 @@ A common mistake: gating a page with only a client-side hook. The hook redirects
 
 ## Step 2 — Pick the right `@authaz/react` primitive
 
-These are the exported hooks/components from `@authaz/react` v1.9 (verified in `packages/react/src/index.tsx`):
+These are the exported hooks/components from `@authaz/react` v2.2.2 (verified in `packages/react/src/index.tsx`):
 
 | Export | Shape | Use when |
 |---|---|---|
@@ -28,7 +28,7 @@ These are the exported hooks/components from `@authaz/react` v1.9 (verified in `
 | `useIsAuthenticated()` | `boolean` | Toggling UI on/off based on auth |
 | `useIsLoading()` | `boolean` | Show a spinner while the session resolves |
 | `useRequireAuth(opts?)` | `void` (side effect) | In a component that should be auth-only — auto-redirects to login |
-| `useRequireUser(opts?)` | `AuthazUser` (guaranteed non-null) | Same as `useRequireAuth` *and* returns the user in one call |
+| `useRequireUser(opts?)` | `AuthazUser \| null` (null while loading/pre-redirect) | Same as `useRequireAuth` *and* returns the user in one call — guard for `null` before use |
 | `useLogin()` | `(returnTo?) => void` | Just the login trigger |
 | `useLogout()` | `(returnTo?) => void` | Just the logout trigger |
 | `<ProtectedRoute>` | Component | Wrap children that require auth |
@@ -45,7 +45,8 @@ Both `useRequireAuth` and `useRequireUser` accept `{ redirectTo?: string }` to c
 import { useRequireUser } from "@authaz/react";
 
 export default function AdminPage() {
-  const user = useRequireUser();      // redirects if signed out; returned user is non-null
+  const user = useRequireUser();      // null while loading or before the redirect fires
+  if (!user) return <Loading />;
   return <h1>Admin — {user.email}</h1>;
 }
 ```
@@ -54,23 +55,22 @@ For server-side checks (server components, route handlers), call the handler's `
 
 ### Hono
 
-The handler already exposes `/api/auth/me`. Use that as the auth check for downstream routes:
+`@authaz/hono` already exports middleware for this — don't hand-roll an internal fetch to `/me`. Use `authMiddleware()` for a plain session check, or `createAuthMiddleware({...}).requireUser` if you also want the parsed user attached to the context:
 
 ```ts
-import type { Context, Next } from "hono";
+import { Hono } from "hono";
+import { createAuthMiddleware } from "@authaz/hono";
 
-const requireAuth = async (c: Context, next: Next) => {
-  const me = await app.fetch(
-    new Request(`http://localhost:${process.env.PORT || 3000}/api/auth/me`, {
-      headers: { cookie: c.req.header("cookie") || "" },
-    })
-  );
-  if (!me.ok) return c.json({ error: "Unauthorized" }, 401);
-  return next();
-};
+const { requireUser } = createAuthMiddleware({
+  authazDomain: process.env.AUTHAZ_IDENTITY_DOMAIN,
+  apiKey: process.env.AUTHAZ_API_KEY!,
+});
 
-app.use("/api/protected/*", requireAuth);
-app.get("/api/protected/hello", (c) => c.json({ message: "hi" }));
+app.use("/api/protected/*", requireUser);
+app.get("/api/protected/hello", (c) => {
+  const user = c.get("user");
+  return c.json({ message: "hi", user });
+});
 ```
 
 ### React SPA — `beforeLoad` (TanStack Router)
@@ -127,4 +127,3 @@ If the protected route loads but auth was supposed to redirect, the matcher like
 
 - `authaz-setup-{nextjs,hono,react,dotnet}` — the underlying wiring
 - `authaz-permission-check` — when "logged in" isn't enough
-- `references/error-codes.md` — for 401 / 403 troubleshooting

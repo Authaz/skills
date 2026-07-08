@@ -7,7 +7,7 @@ description: Use when enabling or configuring an authentication provider on an A
 
 Authaz applications can have multiple providers enabled at once. The hosted Sign-In picks them up automatically — you don't need to redeploy your app. You only edit the application config.
 
-The fastest path is the CLI (`authaz oauth add`, `authaz mfa require`, etc.). Reach for the Dashboard when you need to paste a secret — **the CLI deliberately doesn't accept secrets on the command line**.
+The CLI has no per-provider imperative subcommands — provider/feature toggles are configured via declarative YAML (`authaz export` → edit → `authaz validate` → `authaz apply --file <path> --application-id <id>`). Reach for the Dashboard when you need to paste a secret — **the CLI deliberately doesn't accept secrets in the YAML or on the command line**.
 
 ## Step 1 — Identify the provider
 
@@ -19,8 +19,8 @@ The fastest path is the CLI (`authaz oauth add`, `authaz mfa require`, etc.). Re
 | `apple` | "Continue with Apple" | Apple Developer Sign In with Apple — uses a `.p8` private key, not a secret |
 | `github` | "Continue with GitHub" | GitHub OAuth App with `read:user`, `user:email` |
 | `magic_link` | Email-delivered one-time codes (passwordless) | No external IdP setup |
-| `passkey` | WebAuthn / FIDO2 | Shipped — `authaz passkey enable` |
-| `saml` | Enterprise SSO via SAML 2.0 IdP | Shipped — `authaz saml add/enable` |
+| `passkey` | WebAuthn / FIDO2 | Configured via YAML (`spec.authentication.providers.passkey`) — no CLI subcommand |
+| `saml` | Enterprise SSO via SAML 2.0 IdP | Configured via YAML — no CLI subcommand |
 | `m2m` | OAuth 2 client credentials grant | For service-to-service, not end users |
 
 ## Step 2 — IdP-side console setup (social providers only)
@@ -46,30 +46,18 @@ Capture the IdP's `client_id` and `client_secret` (or the Apple key). You'll pas
 
 ### CLI (recommended for repeatable setups)
 
+There is no imperative per-provider subcommand (no `oauth add`, `magic-link`, `passkey`, `saml`, `m2m`, `mfa`, or `password-policy` commands exist). Configure providers and features by editing the exported YAML and applying it:
+
 ```bash
-authaz oauth add --provider google --client-id 12345.apps.googleusercontent.com --scopes "openid,email,profile"
-authaz oauth enable --provider google
-
-# Other providers:
-authaz magic-link enable
-authaz magic-link set --link-ttl-minutes 15
-
-authaz passkey enable
-authaz passkey set --rp-id auth.your-app.com
-
-authaz saml add --connection-id okta --idp-metadata-url https://...
-authaz saml enable --connection-id okta
-
-authaz m2m enable
-authaz m2m set --allowed-audiences "https://api.your-app.com"
-
-authaz mfa require                              # password-provider MFA
-authaz password-policy set --policy strong
+authaz export --application-id <id> --output app.yaml
+# edit app.yaml: enable/configure the provider, MFA, password policy, etc.
+authaz validate --file app.yaml
+authaz apply --file app.yaml --application-id <id>
 ```
 
-The CLI applies the change with diff + confirmation (use `--yes` in CI, `--dry-run` to preview). See `authaz-cli` for the full reference.
+The CLI applies the change with diff + confirmation (use `--yes` in CI). See `authaz-cli` for the full reference.
 
-**The CLI does not take `--client-secret`.** It prints: "client secret must be set separately via the dashboard." Open the Dashboard after the `oauth add` to paste the secret.
+**The YAML has no field for `client_secret`.** OAuth secrets must be set separately via the Dashboard after applying the provider config.
 
 ### Dashboard
 
@@ -104,7 +92,7 @@ You should get an `access_token` back.
 ## Anti-patterns
 
 - **Don't enable a provider before setting up the IdP redirect URI.** Authaz will redirect to the IdP, and the IdP will reject it. The flow looks broken when it's just unconfigured.
-- **Don't try to pass a secret on the CLI.** The CLI explicitly refuses — paste it in the Dashboard after `oauth add`.
+- **Don't try to pass a secret via the CLI or YAML.** There's no field for it — paste it in the Dashboard after applying the provider config.
 - **Don't ship M2M client secrets in source code.** Treat them like API keys.
 - **Don't enable Apple Sign In casually** — Apple requires a $99/year developer account.
 - **Don't disable password without confirming users have an alternative** — locks out anyone whose only login was email/password.
@@ -113,6 +101,6 @@ You should get an `access_token` back.
 ## References
 
 - Real callback path: `authaz/Authaz.AuthServer/Auth/OAuthProvider/OAuthProviderRoutes.cs`
-- CLI commands: `authaz-cli` (`oauth`, `magic-link`, `passkey`, `saml`, `m2m`, `mfa`, `password-policy`)
+- CLI reference: `authaz-cli` (declarative YAML `export`/`validate`/`apply` — no per-provider subcommands)
 - `references/endpoints.md`, `references/error-codes.md`
 - `authaz-troubleshoot-oauth` for redirect_uri / token failures

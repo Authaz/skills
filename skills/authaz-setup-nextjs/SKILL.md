@@ -5,7 +5,7 @@ description: Use when adding Authaz authentication to a Next.js 14+/15 App Route
 
 # Set up Authaz in a Next.js app — single shot
 
-> **Last verified:** `@authaz/next` + `@authaz/react` v1.9.10 (2026-05-21). If the installed SDK exports don't match (function names, props, env var contract), trust the SDK source over this skill and report the drift.
+> **Last verified:** `@authaz/next` + `@authaz/react` v2.1.0 (2026-05-21). If the installed SDK exports don't match (function names, props, env var contract), trust the SDK source over this skill and report the drift.
 
 Use this skill when the user wants Authaz wired into a Next.js App Router app in one pass. The code below is taken verbatim from `authaz-sdk-js/examples/nextjs` — keep it that way. Do not improvise function names, props, or env vars from memory.
 
@@ -13,20 +13,19 @@ If the project is **Pages Router only** (no `app/` directory), stop and tell the
 
 ## What the user must provide before you start
 
-Four values from the Authaz Dashboard:
+Three values from the Authaz Dashboard:
 
 | Env var | Where it comes from |
 |---|---|
 | `AUTHAZ_CLIENT_ID` | Dashboard → your application → Auth Flow Configuration |
 | `AUTHAZ_CLIENT_SECRET` | Same place. Shown once at creation — if lost, rotate it |
-| `AUTHAZ_ORGANIZATION_ID` | Dashboard → top-level (your Authaz org). **Required.** |
 | `AUTHAZ_TENANT_ID` | Dashboard → tenant. For single-tenant apps, use the default tenant Authaz created for your org |
 
 Plus: in the Authaz Dashboard, add `http://localhost:3000/auth/callback` to the application's **Allowed callback URLs**. Add the production URL when you deploy.
 
 If any of these are missing, stop and ask for them — they cannot be inferred.
 
-The SDK defaults `authazDomain` and `authazIdentityDomain` to `https://auth.authaz.io` and `apiDomain` to `https://api.authaz.io`. Override only if the customer has a custom domain — add `authazDomain` / `apiDomain` options to the handler call in that case.
+The SDK defaults `authazDomain` and `authazIdentityDomain` to `https://auth.authaz.io` and `apiDomain` to `https://api.authaz.com`. Override only if the customer has a custom domain — add `authazDomain` / `apiDomain` options to the handler call in that case.
 
 ## Step 1 — Install
 
@@ -44,12 +43,13 @@ If the project doesn't have Tailwind yet, the example uses it. Skip the Tailwind
 AUTHAZ_CLIENT_ID=your_client_id
 AUTHAZ_CLIENT_SECRET=your_client_secret
 AUTHAZ_TENANT_ID=your_tenant_id
-AUTHAZ_ORGANIZATION_ID=your_organization_id
 ```
 
 Make sure `.env.local` is in `.gitignore` (Next.js's default `.gitignore` already covers it).
 
 ## Step 3 — Write the source files
+
+Paths below assume `src/app/`. If the project has no `src/` dir, use `app/`/`components/` at the root instead — check before writing.
 
 ### `src/app/api/auth/[...authaz]/route.ts`
 
@@ -60,7 +60,6 @@ export const { GET, POST } = createAuthazHandler({
   clientId: process.env.AUTHAZ_CLIENT_ID!,
   clientSecret: process.env.AUTHAZ_CLIENT_SECRET!,
   tenantId: process.env.AUTHAZ_TENANT_ID!,
-  organizationId: process.env.AUTHAZ_ORGANIZATION_ID!,
   afterLoginUrl: "/dashboard",
   afterLogoutUrl: "/",
   debug: process.env.NODE_ENV === "development",
@@ -181,7 +180,7 @@ const DashboardPage = (): React.ReactNode => {
 export default DashboardPage;
 ```
 
-`useRequireAuth()` redirects unauthenticated visitors to `/api/auth/login`. Use it in any client component that should be authenticated-only.
+`useRequireAuth()` redirects unauthenticated visitors to `/api/auth/login`. Use it in any client component that should be authenticated-only. For gating many routes at once via middleware instead of per-page, use `authaz-protect-route`.
 
 ### Optional — `src/components/Navbar.tsx` for login/logout buttons
 
@@ -216,7 +215,7 @@ export const Navbar = (): React.ReactNode => {
 };
 ```
 
-`login()` / `logout()` from `useAuthaz()` are the canonical client-side handles. Don't construct the URLs by hand.
+`login()` / `logout()` from `useAuthaz()` are the canonical client-side handles for triggering the flow — use them instead of constructing the URLs by hand.
 
 ## Step 4 — Run and verify
 
@@ -232,9 +231,9 @@ Then in the browser:
 4. Click **Logout** → cleared session, back at `/`.
 
 If you don't have a Navbar, navigate manually:
-- `http://localhost:3000/api/auth/login` triggers the flow.
-- `http://localhost:3000/api/auth/logout` ends it.
+- `http://localhost:3000/api/auth/login` triggers the flow (GET works, it's a redirect).
 - `http://localhost:3000/dashboard` directly tests the guard.
+- Logout is **POST-only** (same CSRF protection as callback) — typing `/api/auth/logout` in the address bar sends GET and 405s. Use the Navbar's `logout()` button, or `fetch("/api/auth/logout", { method: "POST" })` from the console.
 
 ## When something fails
 
@@ -260,7 +259,7 @@ When you move beyond `localhost`:
 
 ## Anti-patterns
 
-- **Never put `AUTHAZ_CLIENT_SECRET` (or `AUTHAZ_ORGANIZATION_ID`) in a `NEXT_PUBLIC_*` var.** They're server-only.
+- **Never put `AUTHAZ_CLIENT_SECRET` in a `NEXT_PUBLIC_*` var.** It's server-only.
 - **Never store tokens in `localStorage`.** The SDK uses HttpOnly cookies; that's the design.
 - **`/auth/callback` is a page, not an API route.** The POST is to `/api/auth/callback`, which is the handler — both live under different paths.
 - **Don't add `AUTHAZ_IDENTITY_DOMAIN` unless the customer has a custom identity domain.** The SDK defaults to `https://auth.authaz.io` — let it.

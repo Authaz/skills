@@ -66,9 +66,9 @@ You don't build this — you redirect to it.
 ## Management API vs auth flow
 
 - **Auth flow** = `https://auth.authaz.io/...` (default) — what end users hit (browser redirects, OAuth, JWKS).
-- **Management API** = `https://api.authaz.io/...` (default) — what your backend hits (create users, assign roles, check permissions).
+- **Management API** = `https://api.authaz.io/...` (default for the hosted product) — what your backend hits (create users, assign roles, check permissions). The JS SDK's baked-in `apiDomain` default is the older `https://api.authaz.com`; pass `apiDomain` explicitly to target the current `.io` host.
 
-Different hostnames, different auth (cookies vs API key), different audiences. Don't confuse them.
+Different hostnames, different auth (cookies vs API key), different audiences.
 
 ## Zeratul
 

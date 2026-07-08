@@ -7,7 +7,7 @@ description: Use when the user wants to add Authaz to their project but hasn't n
 
 Your only job here is to figure out which `authaz-setup-*` skill applies and hand off. You are **not** setting anything up yourself.
 
-If the user doesn't have an Authaz account yet, hand off to `authaz-signup` first — it covers signing up at the Dashboard and collecting the four credentials (`clientId`, `clientSecret`, `organizationId`, `tenantId`). Then come back here.
+If the user doesn't have an Authaz account yet, hand off to `authaz-signup` first — it covers signing up at the Dashboard and collecting the three credentials (`clientId`, `clientSecret`, `tenantId`). Then come back here.
 
 ## Step 1 — Detect the framework
 
@@ -27,7 +27,7 @@ If nothing matches, ask the user what stack they're on. The supported stacks are
 
 ## Step 2 — Hand off
 
-Invoke the chosen setup skill. There are no separate code paths for single- vs multi-tenant — that's purely the `tenantId` value the customer passes. The setup skill takes it from there.
+Invoke the chosen setup skill. The SDK integration code itself doesn't branch on single- vs multi-tenant — every stack's setup passes the same optional `tenantId` value in config regardless. (The app's tenancy type itself is a Dashboard-level choice made at application creation and cannot be changed later; see `authaz-signup` Step 6.) The setup skill takes it from there.
 
 ## After setup
 
