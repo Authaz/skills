@@ -127,6 +127,7 @@ If step 5 leaks data, your tenant filtering is broken — fix before shipping an
 - **Don't cache user → tenant as a single field.** Cache `(user, tenant)` together — tenant is a primary key alongside user.
 - **Don't use isolated mode unless you actually need it.** Triples per-customer support cost (more user-record edge cases).
 - **Don't rely on the `roles` claim for authoritative authorization.** Use SDK `authz.check` — see `authaz-permission-check`.
+- **Don't confuse a role's `isGlobal` flag with tenant-wide access.** `isGlobal` says the role is defined app-wide (available in any tenant's catalog); it says nothing about whether an assignment is tenant-scoped. Scope comes from the `tenantId` passed when the role is invited/assigned, not from `isGlobal`. See `authaz-management-api` for the invite/membership/removal calls this affects.
 
 ## Source of truth
 

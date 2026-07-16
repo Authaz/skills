@@ -173,6 +173,43 @@ const invite = await authaz.invitations.send(
 var invite = await authaz.Invitations.SendAsync(new SendInvitationRequest(/* ... */));
 ```
 
+Omitting `tenantId` doesn't fail — it mints a **tenantless (app-wide) grant**. If the surface sending the invite is scoped to one tenant (e.g. an org's own "team" page), always pass that tenant's id explicitly; never let it default to null just because the form only collects an email and a role.
+
+### `Role.isGlobal` is a catalog flag, not a grant scope
+
+Non-obvious and easy to get backwards: `isGlobal` on a **role definition** (`OwnerTenantId == null`) means the role is *defined app-wide* and available for assignment in any tenant — built-ins like `owner`/`writer`/`reader` are all `isGlobal`. It does **not** mean "assigning this role grants app-wide access." Scope is decided at **grant/invitation time** by whether you pass a `tenantId`:
+
+- `roles.list()` filtered to `isGlobal` → the app-wide role catalog, usable as options in any tenant's invite form.
+- The role a tenant itself defines (`role.tenantId === thatTenantId`) is *also* assignable there — the assignable set for a given tenant's invite form is `isGlobal || role.tenantId === tenantId`, not just `isGlobal`.
+- The actual access boundary comes from the `tenantId` on the invitation/assignment, not from `isGlobal` on the role.
+
+Don't gate "does this role grant everything" on `role.isGlobal` — that's answering a different question (is it centrally defined) than the one you mean to ask (does the assignment carry a tenant scope).
+
+### List members of one tenant: use `roles.getUsersWithRoles`, not `users.listRoles`
+
+To answer "who belongs to tenant X, and with what roles", call the tenant-scoped roster endpoint and filter server-side by passing `tenantId`:
+
+```ts
+const rolesResult = await authaz.roles.getUsersWithRoles({ tenantId }, { accessToken });
+// rolesResult.data: { userId, roles: { roleId, roleName }[] }[]
+```
+
+Do **not** try to reconstruct this by calling `users.listRoles(userId)` per user and filtering on `roles[].tenantId` — that field is the role's *definition* tenant (null for `isGlobal` built-ins like `owner`), not the *assignment* scope. Filtering on it silently drops every member holding a built-in role, which in practice is most members. `getUsersWithRoles({ tenantId })` filters on the assignment scope correctly; use it for both the member list and for finding which role assignments to unassign when removing a member.
+
+### Remove a member from a tenant
+
+There's no single "remove member" call — unassign every role they hold in that tenant:
+
+```ts
+const { data } = await authaz.roles.getUsersWithRoles({ tenantId }, { accessToken });
+const theirRoles = data.find(e => e.userId === userId)?.roles ?? [];
+for (const role of theirRoles) {
+  await authaz.roles.unassign(role.roleId, userId, tenantId, { accessToken });
+}
+```
+
+This only revokes access in `tenantId` — assignments the user holds in other tenants are untouched, so a shared-pool user removed from one tenant keeps working in the others (see `authaz-multi-tenant`).
+
 ### Check a permission
 
 ```ts
@@ -212,6 +249,9 @@ For every operation wired up:
 - **Don't `Guid.Parse` IDs from API responses without checking the docs.** Many Authaz IDs are prefixed strings (`user_01abc…`), not GUIDs.
 - **Don't paraphrase endpoint paths from this skill into raw `curl` calls.** SDKs disagree on `/api/v1/...` vs `/v1/...`; use SDK methods.
 - **Don't share one API key across services.** Per-service keys keep rotation isolated.
+- **Don't treat `role.isGlobal` as "grants app-wide access."** It only means the role is centrally *defined*; the actual access scope comes from the `tenantId` passed at invite/assign time.
+- **Don't send an invitation without `tenantId` from a tenant-scoped surface.** A missing `tenantId` produces a tenantless (app-wide) grant, not an error.
+- **Don't filter `users.listRoles()` results on `roles[].tenantId` to find a tenant's members.** That's the role's definition tenant (often null), not the assignment scope — use `roles.getUsersWithRoles({ tenantId })` instead.
 
 ## Source of truth
 
