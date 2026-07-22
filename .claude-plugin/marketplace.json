@@ -1,0 +1,11 @@
+{
+  "name": "authaz",
+  "owner": { "name": "Authaz" },
+  "plugins": [
+    {
+      "name": "authaz",
+      "source": "./",
+      "description": "Skills de integração do Authaz (setup por framework, auth, multi-tenant, permissões, troubleshooting)."
+    }
+  ]
+}
