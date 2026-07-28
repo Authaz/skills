@@ -1,8 +1,3 @@
----
-name: authaz-signup
-description: Use when the user is brand-new to Authaz and needs to create their Authaz account before integrating. Walks the customer through Dashboard signup, the auto-provisioned organization, creating their first application via the CLI, collecting the three core credentials (and the organization ID for Management API use), and adding callback URLs. Hand off to authaz-quickstart afterward. Triggers on "I'm new to Authaz", "how do I sign up to Authaz", "create Authaz account", "first time setting up Authaz".
----
-
 # Become a new Authaz customer
 
 Front of the funnel: before integrating, the customer needs an Authaz account, an organization, and an application. Signup + first login auto-provisions their **organization** (customer becomes **Owner**, via `DashboardOnboardingService.OnboardIfNeededAsync`). They create their **first application** themselves in Step 3, via the CLI, in one command.
@@ -70,7 +65,7 @@ spec:
       enabled: true
 ```
 
-For `multi_tenant`, also set `mode: shared` under `spec.tenancy` — see `authaz-multi-tenant` for the full multi-tenant YAML shape and tenant scoping in app code.
+For `multi_tenant`, also set `mode: shared` under `spec.tenancy` — see `multi-tenant.md` for the full multi-tenant YAML shape and tenant scoping in app code.
 
 ```bash
 authaz validate --file app.yaml
@@ -127,11 +122,11 @@ Tenancy type is set at creation and **cannot be changed later**. If the customer
 authaz apply --file multi-tenant-app.yaml   # no metadata.id -> creates new, doesn't touch the single-tenant one
 ```
 
-Tenancy is YAML-only, like every feature-level config — set via `authaz apply`, not an imperative command. See `authaz-multi-tenant`.
+Tenancy is YAML-only, like every feature-level config — set via `authaz apply`, not an imperative command. See `multi-tenant.md`.
 
 ## Step 7 — Hand off
 
-Customer now has everything to start integrating. Invoke `authaz-quickstart` next — it detects the framework and dispatches to the right setup skill.
+Customer now has everything to start integrating. Go back to the `authaz-quickstart` skill next — it detects the framework and points at the right `setup-*.md` recipe.
 
 ```
 authaz-quickstart
@@ -141,10 +136,10 @@ Or, if framework already known, jump straight to the matching skill:
 
 | Framework | Skill |
 |---|---|
-| Next.js | `authaz-setup-nextjs` |
-| Hono | `authaz-setup-hono` |
-| React SPA | `authaz-setup-react` |
-| ASP.NET Core | `authaz-setup-dotnet` |
+| Next.js | `setup-nextjs.md` |
+| Hono | `setup-hono.md` |
+| React SPA | `setup-react.md` |
+| ASP.NET Core | `setup-dotnet.md` |
 
 ## Anti-patterns
 
@@ -165,4 +160,4 @@ Or, if framework already known, jump straight to the matching skill:
 
 - `authaz-quickstart` — the next step after the customer has their credentials
 - `authaz-cli` — change tenancy, set branding, add OAuth providers from the command line
-- `references/glossary.md` — organization vs application vs tenant
+- `glossary.md` — organization vs application vs tenant

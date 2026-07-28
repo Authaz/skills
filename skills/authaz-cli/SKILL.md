@@ -71,7 +71,7 @@ Exported YAML carries `metadata.etag`, used by the next `apply` for optimistic c
 
 ### Application YAML reference
 
-Field tree, derived from real `export`/`apply` round-trips (single- and multi-tenant). "Required" = the resolved schema — every application has a value for these fields. On `apply` to a **new** app, omitted fields get sane server-side defaults, so a short starter YAML (see `authaz-signup` Step 3) works fine — **except** `spec.authentication.settings.enabled`, which has no default (see gotcha below): always set it explicitly.
+Field tree, derived from real `export`/`apply` round-trips (single- and multi-tenant). "Required" = the resolved schema — every application has a value for these fields. On `apply` to a **new** app, omitted fields get sane server-side defaults, so a short starter YAML (see the `authaz-quickstart` skill's `references/signup.md` Step 3) works fine — **except** `spec.authentication.settings.enabled`, which has no default (see gotcha below): always set it explicitly.
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
@@ -81,7 +81,7 @@ Field tree, derived from real `export`/`apply` round-trips (single- and multi-te
 | `metadata.name` | string | required | |
 | `metadata.etag` | string | optional | optimistic-concurrency token from `export`; omit or use `--force` when applying to a different app |
 | `spec.tenancy.type` | `single_tenant` \| `multi_tenant` | required | |
-| `spec.tenancy.mode` | `shared` \| `isolated` | multi-tenant only | see `authaz-multi-tenant` |
+| `spec.tenancy.mode` | `shared` \| `isolated` | multi-tenant only | see the `authaz-quickstart` skill's `references/multi-tenant.md` |
 | `spec.tenancy.requireTenantHint` | bool | required | |
 | `spec.authentication.providers.emailPassword.enabled` | bool | required | |
 | `spec.authentication.providers.emailPassword.{minLength,maxLength}` | int | required | |
@@ -91,7 +91,7 @@ Field tree, derived from real `export`/`apply` round-trips (single- and multi-te
 | `spec.authentication.signup.enabled` | bool | required | |
 | `spec.authentication.signup.autoCreateTenant` | bool | required | |
 | `spec.authentication.signup.requireTermsAcceptance` | bool | required | |
-| `spec.authentication.invitations.*` | block | **optional** | only present if invitations feature is used — omit entirely otherwise. See `authaz-add-provider` |
+| `spec.authentication.invitations.*` | block | **optional** | only present if invitations feature is used — omit entirely otherwise. See the `authaz-quickstart` skill's `references/add-provider.md` |
 | `spec.authentication.session.{timeoutMinutes,idleTimeoutMinutes,absoluteTimeoutMinutes,persistentSessionDays,maxConcurrentSessions}` | int | required | |
 | `spec.authentication.session.{allowConcurrentSessions,requireReauthForSensitive}` | bool | required | |
 | `spec.authentication.settings.redirectUris` | string[] | required | |
@@ -182,7 +182,7 @@ There is no `--dry-run` flag. **Multi-document YAML (`---` separators) is not su
 
 If the YAML's `kind` is `Authorization` (roles, policies, permissions), `apply` validates server-side first and emits a per-change summary. Same flags apply (`--yes`, `--force`).
 
-The concrete field shape hasn't been captured from a live example yet — `authaz export` (CLI v0.4.2, live-verified) only emits `kind: Application`, and no `kind: Authorization` schema strings exist in the installed CLI binary. If you need the real shape, check whether a newer CLI version's `authaz export` can target roles/policies directly, or use the Management API's `Authorization` resource (`.Roles`, `.Permissions`, `.Policies` — see `authaz-management-api`) instead of guessing at YAML fields.
+The concrete field shape hasn't been captured from a live example yet — `authaz export` (CLI v0.4.2, live-verified) only emits `kind: Application`, and no `kind: Authorization` schema strings exist in the installed CLI binary. If you need the real shape, check whether a newer CLI version's `authaz export` can target roles/policies directly, or use the Management API's `Authorization` resource (`.Roles`, `.Permissions`, `.Policies` — see the `authaz-quickstart` skill's `references/management-api.md`) instead of guessing at YAML fields.
 
 ## Other commands (no YAML needed)
 
@@ -253,7 +253,7 @@ Then open the hosted Sign-In page for the application — providers, branding, a
 
 - **Don't commit `metadata.etag` between environments.** It's per-app concurrency state, not config. Strip it or use `--force` when copying.
 - **Don't pass `--force` blindly in CI.** Defeats the optimistic-concurrency check. Use only when you understand the prior state.
-- **Don't use `authaz` to manage users, roles, or tenants — it's app-config only.** Those operations live in the Management API (`Authaz.Sdk` or `@authaz/sdk`). See `authaz-management-api`.
+- **Don't use `authaz` to manage users, roles, or tenants — it's app-config only.** Those operations live in the Management API (`Authaz.Sdk` or `@authaz/sdk`). See the `authaz-quickstart` skill's `references/management-api.md`.
 - **Don't paste `client_secret` on the CLI.** OAuth secrets are set via the Dashboard; the CLI has no field for them.
 - **Don't invent per-feature subcommands (`oauth`, `mfa`, `branding`, etc.).** They don't exist — everything feature-level is YAML.
 - **Don't assume an env-var interpolation syntax in YAML.** The CLI does not implement `${env:VAR}` substitution — use a templating step in CI if you need secrets out-of-band.
@@ -271,7 +271,7 @@ If the CLI ever disagrees with this skill, the CLI wins — report the drift. Co
 
 ## References
 
-- `authaz-add-provider` — provider-specific dashboard/IdP setup (parts the CLI can't do, e.g. uploading Apple's `.p8` key)
-- `authaz-management-api` — for users, roles, tenants (not app config)
-- `authaz-multi-tenant` — when configuring multi-tenant apps via YAML
+- the `authaz-quickstart` skill's `references/add-provider.md` — provider-specific dashboard/IdP setup (parts the CLI can't do, e.g. uploading Apple's `.p8` key)
+- the `authaz-quickstart` skill's `references/management-api.md` — for users, roles, tenants (not app config)
+- the `authaz-quickstart` skill's `references/multi-tenant.md` — when configuring multi-tenant apps via YAML
 - `references/glossary.md`

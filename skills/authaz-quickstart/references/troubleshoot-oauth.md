@@ -1,8 +1,3 @@
----
-name: authaz-troubleshoot-oauth
-description: Use when an Authaz OAuth flow is broken — redirect_uri mismatch, PKCE error, JWKS / token validation failure, callback loop, expired code, clock skew. Walks the symptom → cause → fix path for the common failures. Triggers on "redirect_uri mismatch", "invalid_grant", "authaz login broken", "authaz callback error", "JWKS error".
----
-
 # Debug an Authaz OAuth flow
 
 Match the exact error to the table below — don't guess.
@@ -81,5 +76,5 @@ Manual round-trip works → SDK config is wrong. Fails the same way → app conf
 ## References
 
 - OAuth 2.1 reference: <https://authaz.io/docs/authentication/oauth2>
-- `references/error-codes.md` — every error you might see
-- `references/endpoints.md` — all endpoint URLs and JWKS path
+- `error-codes.md` — every error you might see
+- `endpoints.md` — all endpoint URLs and JWKS path

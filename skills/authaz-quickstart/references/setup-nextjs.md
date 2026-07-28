@@ -1,8 +1,3 @@
----
-name: authaz-setup-nextjs
-description: Use when adding Authaz authentication to a Next.js 14+/15 App Router app. Single-shot — writes every required file end to end using `@authaz/next` + `@authaz/react`. Triggers on "add Authaz to Next.js", "set up authentication in Next.js", "@authaz/next".
----
-
 # Set up Authaz in a Next.js app — single shot
 
 > **Last verified:** `@authaz/next` + `@authaz/react` v2.1.0 (2026-05-21). If the installed SDK exports don't match (function names, props, env var contract), trust the SDK source over this skill and report the drift.
@@ -180,7 +175,7 @@ const DashboardPage = (): React.ReactNode => {
 export default DashboardPage;
 ```
 
-`useRequireAuth()` redirects unauthenticated visitors to `/api/auth/login`. Use in any client component that should be authenticated-only. For gating many routes via middleware instead of per-page, use `authaz-protect-route`.
+`useRequireAuth()` redirects unauthenticated visitors to `/api/auth/login`. Use in any client component that should be authenticated-only. For gating many routes via middleware instead of per-page, use `protect-route.md`.
 
 ### Optional — `src/components/Navbar.tsx` for login/logout buttons
 
@@ -250,7 +245,7 @@ Almost every failure on the first run is one of:
 3. **No login button / `useAuthaz` is undefined** — the `AuthazProvider` is missing or wraps too narrowly. It must wrap *all* components that call `useAuthaz()` or `useRequireAuth()`.
 4. **Cookie not set** — running over plain `http` in production? The session cookie is `Secure`. Use HTTPS in production. In dev, `localhost` is exempt.
 
-For anything else, hand off to `authaz-troubleshoot-oauth`.
+For anything else, hand off to `troubleshoot-oauth.md`.
 
 ## Production checklist
 
@@ -292,6 +287,6 @@ src/
 
 - Real example: `authaz-sdk-js/examples/nextjs/`
 - SDK source: `authaz-sdk-js/packages/next/src/index.tsx`
-- `authaz-troubleshoot-oauth` — failure diagnostics
-- `authaz-multi-tenant` — tenant scoping in business logic
-- `authaz-permission-check` — runtime authorization checks
+- `troubleshoot-oauth.md` — failure diagnostics
+- `multi-tenant.md` — tenant scoping in business logic
+- `permission-check.md` — runtime authorization checks

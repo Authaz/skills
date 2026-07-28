@@ -14,33 +14,39 @@ Install the whole bundle:
 npx skills add authaz/skills
 ```
 
-Or pick a single skill:
+Or install just the CLI skill:
 
 ```bash
-npx skills add authaz/skills --skill authaz-setup-nextjs
+npx skills add authaz/skills --skill authaz-cli
 ```
 
 Skills install into your agent's local skills directory automatically. See [skills.sh](https://skills.sh) for the supported agents and CLI reference.
 
 ## What's in the bundle
 
+Two skills, so your agent's skill list stays readable:
+
 | Skill | Use when |
 |---|---|
-| `authaz-signup` | Brand-new to Authaz: sign up at the Dashboard, collect the four credentials, hand off to quickstart |
-| `authaz-quickstart` | Already have an Authaz account; not sure which setup skill applies to your stack |
-| `authaz-setup-nextjs` | Adding Authaz to a Next.js app (App Router) |
-| `authaz-setup-hono` | Adding Authaz to a Hono backend |
-| `authaz-setup-react` | Adding Authaz to a React SPA |
-| `authaz-setup-dotnet` | Adding Authaz to an ASP.NET Core app |
-| `authaz-add-provider` | Enabling password / Google / GitHub / magic link / M2M |
-| `authaz-protect-route` | Gating a route or endpoint behind authentication |
-| `authaz-permission-check` | Calling the authorization API to check a user's permission |
-| `authaz-multi-tenant` | Reading `tenant_id` from the JWT, scoping queries by tenant |
-| `authaz-management-api` | Using the SDK to manage users, roles, tenants, invitations |
-| `authaz-cli` | Configuring an Authaz application with the `authaz` CLI — login, OAuth/MFA/branding/etc., declarative YAML apply |
-| `authaz-troubleshoot-oauth` | Debugging redirect_uri, PKCE, JWKS, or token errors |
+| `authaz-quickstart` | Anything about adding or using Authaz in an app — signup, framework setup, providers, route protection, permissions, tenants, Management API, OAuth debugging |
+| `authaz-cli` | Configuring an Authaz application with the `authaz` CLI — login, OAuth/MFA/branding, declarative YAML apply |
 
-The `references/` directory at the repo root holds shared lookup tables (endpoints, error codes, glossary) the skills point your agent at. Install the whole bundle if you want the references available alongside individual skills.
+`authaz-quickstart` is a router. The recipes live in `authaz-quickstart/references/` and the agent opens only the one the task needs:
+
+| Reference | Covers |
+|---|---|
+| `signup.md` | Brand-new to Authaz: sign up, collect credentials |
+| `setup-nextjs.md` | Next.js App Router |
+| `setup-hono.md` | Hono backend |
+| `setup-react.md` | React SPA |
+| `setup-dotnet.md` | ASP.NET Core |
+| `add-provider.md` | Password / Google / GitHub / magic link / passkey / SAML / M2M |
+| `protect-route.md` | Gating a route or endpoint |
+| `permission-check.md` | Checking a user's permission |
+| `multi-tenant.md` | `tenant_id`, tenant-scoped queries |
+| `management-api.md` | Users, roles, tenants, invitations from a backend |
+| `troubleshoot-oauth.md` | redirect_uri, PKCE, JWKS, token errors |
+| `glossary.md`, `endpoints.md`, `error-codes.md` | Shared lookup tables |
 
 ## How the skills are designed
 

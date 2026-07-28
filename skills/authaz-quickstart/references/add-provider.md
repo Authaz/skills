@@ -1,8 +1,3 @@
----
-name: authaz-add-provider
-description: Use when enabling or configuring an authentication provider on an Authaz application — password, Google / Microsoft / Apple / GitHub social login, magic link, passkey, SAML, or M2M client credentials. Drives the IdP-side console setup plus the Authaz-side toggle (CLI or Dashboard). Triggers on "add Google login", "enable magic link", "add OAuth provider", "M2M client credentials".
----
-
 # Add or configure an authentication provider
 
 - Multiple providers can be enabled at once; hosted Sign-In picks up changes automatically — **no redeploy needed**, only edit the application config.
@@ -102,5 +97,5 @@ You should get an `access_token` back.
 
 - Real callback path: `authaz/Authaz.AuthServer/Auth/OAuthProvider/OAuthProviderRoutes.cs`
 - CLI reference: `authaz-cli` (declarative YAML `export`/`validate`/`apply` — no per-provider subcommands)
-- `references/endpoints.md`, `references/error-codes.md`
-- `authaz-troubleshoot-oauth` for redirect_uri / token failures
+- `endpoints.md`, `error-codes.md`
+- `troubleshoot-oauth.md` for redirect_uri / token failures

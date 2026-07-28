@@ -1,8 +1,3 @@
----
-name: authaz-permission-check
-description: Use when a route or operation needs an authorization check — not just "is the user signed in" but "is this user allowed to do X". Calls the SDK's authz check method (`authaz.authz.check` in JS, `authaz.Authorization.Permissions.CheckAsync` in .NET). Always passes `tenantId` in multi-tenant. Triggers on "check permission", "is allowed", "authz check", "RBAC".
----
-
 # Check a permission
 
 - Authaz splits **authentication** (JWT, signed by Authaz, verified by your app) from **authorization** (a runtime call). Role assignments change without re-issuing tokens, so authorization must be a live call, not a JWT read.
@@ -16,7 +11,7 @@ description: Use when a route or operation needs an authorization check — not 
 
 ## 2. Set up the SDK
 
-Skip if `Authaz.Sdk` / `@authaz/sdk` already wired via `authaz-management-api`.
+Skip if `Authaz.Sdk` / `@authaz/sdk` already wired via `management-api.md`.
 
 **.NET:**
 ```csharp
@@ -145,5 +140,5 @@ Check is fast but not free. For hot paths, cache **request-scoped only** (lifeti
 
 ## References
 
-- `authaz-multi-tenant` — tenant resolution and isolation
-- `authaz-management-api` — wider SDK surface
+- `multi-tenant.md` — tenant resolution and isolation
+- `management-api.md` — wider SDK surface

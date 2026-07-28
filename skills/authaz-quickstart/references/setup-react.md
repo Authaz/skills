@@ -1,15 +1,10 @@
----
-name: authaz-setup-react
-description: Use when adding Authaz to a React SPA (Vite + TanStack Router). Single-shot — writes the provider, callback route, and protected route guards using `@authaz/react`. Requires a paired backend running the Authaz handler. Triggers on "add Authaz to React", "@authaz/react", "React SPA login".
----
-
 # Set up Authaz in a React SPA — single shot
 
 > **Last verified:** `@authaz/react` v2.1.0 (2026-05-21). If installed SDK exports don't match, trust the SDK source over this skill and report the drift.
 
 Wires Authaz into a Vite + React SPA in one pass. Code taken verbatim from `authaz-sdk-js/examples/react-hono/src/`.
 
-SPA is **client-side only** — needs a backend running the Authaz handler at `/api/auth/*` (example pairs with a Hono server, same repo). If no backend exists, **stop and run `authaz-setup-hono` first**, then return: `AuthazProvider` reads from `/api/auth/me` and has nothing to talk to otherwise.
+SPA is **client-side only** — needs a backend running the Authaz handler at `/api/auth/*` (example pairs with a Hono server, same repo). If no backend exists, **stop and run `setup-hono.md` first**, then return: `AuthazProvider` reads from `/api/auth/me` and has nothing to talk to otherwise.
 
 ## Prerequisites
 
@@ -282,7 +277,7 @@ If `/dashboard` flashes the redirect before settling, that's `beforeLoad` workin
 4. **`invalid_redirect_uri` on Authaz page** — app's allowed-callback list is missing `http://localhost:5173/auth/callback` (the *SPA*'s port, not the backend's).
 5. **`routeTree.gen.ts` missing** — TanStack Router's plugin generates it on Vite start; run `pnpm dev` once. Still missing? Ensure `TanStackRouterVite()` is in `vite.config.ts`.
 
-Other failures → hand off to `authaz-troubleshoot-oauth`.
+Other failures → hand off to `troubleshoot-oauth.md`.
 
 ## Production checklist
 
@@ -305,12 +300,12 @@ Moving beyond `localhost`:
 
 ## Source of truth
 
-Code above is lifted from `authaz-sdk-js/examples/react-hono/src/`. Corresponding backend is in `server/` — see `authaz-setup-hono`.
+Code above is lifted from `authaz-sdk-js/examples/react-hono/src/`. Corresponding backend is in `server/` — see `setup-hono.md`.
 
 ## References
 
 - Real example: `authaz-sdk-js/examples/react-hono/`
 - SDK source: `authaz-sdk-js/packages/react/src/`
-- `authaz-setup-hono` — paired backend
-- `authaz-troubleshoot-oauth` — failure diagnostics
-- `authaz-multi-tenant`, `authaz-permission-check`
+- `setup-hono.md` — paired backend
+- `troubleshoot-oauth.md` — failure diagnostics
+- `multi-tenant.md`, `permission-check.md`

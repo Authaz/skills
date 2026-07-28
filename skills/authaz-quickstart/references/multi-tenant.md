@@ -1,8 +1,3 @@
----
-name: authaz-multi-tenant
-description: Use when working with tenants — reading `tenant_id` from the JWT, scoping queries by tenant, choosing shared-pool vs isolated tenancy, or handling tenant switching. Triggers on "multi-tenant", "tenant_id claim", "scope by tenant", "B2B SaaS", "tenant isolation".
----
-
 # Multi-tenant Authaz
 
 In Authaz, **your customer is a tenant**, not a separate organization. Acme Corp = one tenant inside *your* app; Globex = another tenant in the same app. One application, many tenants, optionally one user across multiple tenants.
@@ -88,7 +83,7 @@ var tenantId = User.FindFirst("tenant_id")?.Value;
 
 Non-negotiable:
 1. **Every query reading tenant data filters on `tenantId`** from the token — not from user input.
-2. **Every authorization check passes `tenantId`** to `authz.check`. See `authaz-permission-check`.
+2. **Every authorization check passes `tenantId`** to `authz.check`. See `permission-check.md`.
 
 ```sql
 -- good
@@ -126,8 +121,8 @@ If step 5 leaks data, your tenant filtering is broken — fix before shipping an
 - **Don't render your own tenant picker on the Authaz Sign-In page.** Pick the tenant in your app before initiating login.
 - **Don't cache user → tenant as a single field.** Cache `(user, tenant)` together — tenant is a primary key alongside user.
 - **Don't use isolated mode unless you actually need it.** Triples per-customer support cost (more user-record edge cases).
-- **Don't rely on the `roles` claim for authoritative authorization.** Use SDK `authz.check` — see `authaz-permission-check`.
-- **Don't confuse a role's `isGlobal` flag with tenant-wide access.** `isGlobal` says the role is defined app-wide (available in any tenant's catalog); it says nothing about whether an assignment is tenant-scoped. Scope comes from the `tenantId` passed when the role is invited/assigned, not from `isGlobal`. See `authaz-management-api` for the invite/membership/removal calls this affects.
+- **Don't rely on the `roles` claim for authoritative authorization.** Use SDK `authz.check` — see `permission-check.md`.
+- **Don't confuse a role's `isGlobal` flag with tenant-wide access.** `isGlobal` says the role is defined app-wide (available in any tenant's catalog); it says nothing about whether an assignment is tenant-scoped. Scope comes from the `tenantId` passed when the role is invited/assigned, not from `isGlobal`. See `management-api.md` for the invite/membership/removal calls this affects.
 
 ## Source of truth
 
@@ -137,4 +132,4 @@ If step 5 leaks data, your tenant filtering is broken — fix before shipping an
 
 ## References
 
-- `authaz-permission-check`, `authaz-management-api`
+- `permission-check.md`, `management-api.md`

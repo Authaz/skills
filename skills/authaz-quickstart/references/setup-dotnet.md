@@ -1,8 +1,3 @@
----
-name: authaz-setup-dotnet
-description: Use when adding Authaz to an ASP.NET Core app (net8/9/10). Covers two integrations — signing users in via OpenID Connect against Authaz, and calling the Management API via `Authaz.Sdk`. Single-shot for each half. Triggers on "add Authaz to ASP.NET", "Authaz.Sdk", "OIDC Authaz", ".NET login".
----
-
 # Set up Authaz in an ASP.NET Core app — single shot
 
 > **Last verified:** `Authaz.Sdk` v0.1.2 (2026-05-21). Pre-1.0 SDK — APIs unstable. If `AddAuthazSdk`, `IAuthazClient`, or `AuthazResult<T>` differ from the installed package, trust the SDK source and report the drift.
@@ -320,6 +315,6 @@ Expect a JSON array of users. 401 → API key missing/wrong. 403 → key lacks t
 
 - Real SDK sample: `authaz-sdk-dotnet/Authaz.Sdk.Sample/`
 - SDK source: `authaz-sdk-dotnet/Authaz.Sdk/src/`
-- `authaz-management-api` — deeper coverage of SDK clients
-- `authaz-troubleshoot-oauth` — OIDC failure diagnostics
-- `authaz-multi-tenant`, `authaz-permission-check`
+- `management-api.md` — deeper coverage of SDK clients
+- `troubleshoot-oauth.md` — OIDC failure diagnostics
+- `multi-tenant.md`, `permission-check.md`

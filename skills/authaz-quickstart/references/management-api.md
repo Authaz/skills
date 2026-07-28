@@ -1,8 +1,3 @@
----
-name: authaz-management-api
-description: Use when calling Authaz's Management API from a backend — creating users, assigning roles, listing tenants, sending invitations, querying audit logs, managing API keys, or other admin operations. Prefers `Authaz.Sdk` (.NET) and `createAuthazClient` from `@authaz/sdk` (JS). Triggers on "management API", "Authaz.Sdk", "create user via API", "assign role", "invite user", "audit log".
----
-
 # Use the Authaz Management API
 
 Management API: `https://api.authaz.io` (hosted product) — **not** the OAuth flow at `https://auth.authaz.io`. Different hosts, auth (`X-API-Key` vs cookies/JWTs), audiences.
@@ -208,7 +203,7 @@ for (const role of theirRoles) {
 }
 ```
 
-This only revokes access in `tenantId` — assignments the user holds in other tenants are untouched, so a shared-pool user removed from one tenant keeps working in the others (see `authaz-multi-tenant`).
+This only revokes access in `tenantId` — assignments the user holds in other tenants are untouched, so a shared-pool user removed from one tenant keeps working in the others (see `multi-tenant.md`).
 
 ### Check a permission
 
@@ -262,7 +257,7 @@ For every operation wired up:
 
 ## References
 
-- `references/endpoints.md` — high-level catalog of sub-clients
-- `references/error-codes.md` — error shape and retry guidance
-- `authaz-permission-check` — runtime `authz.check` patterns
-- `authaz-multi-tenant` — tenant scoping
+- `endpoints.md` — high-level catalog of sub-clients
+- `error-codes.md` — error shape and retry guidance
+- `permission-check.md` — runtime `authz.check` patterns
+- `multi-tenant.md` — tenant scoping

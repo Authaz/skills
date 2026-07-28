@@ -1,15 +1,10 @@
----
-name: authaz-setup-hono
-description: Use when adding Authaz authentication to a Hono backend on Node (with `@hono/node-server`). Single-shot — writes the server entry plus the auth-handler module using `@authaz/hono`. Triggers on "add Authaz to Hono", "set up authentication in Hono", "@authaz/hono".
----
-
 # Set up Authaz in a Hono backend — single shot
 
 > **Last verified:** `@authaz/hono` v1.9.10 (2026-05-21). If installed SDK exports don't match, trust the SDK source over this skill and report the drift.
 
 Wires Authaz into a Hono server in one pass. Code lifted verbatim from `authaz-sdk-js/examples/react-hono/server/`.
 
-- **Scope:** server only. Wiring a React SPA against this server → hand off to `authaz-setup-react` after this skill finishes (same example, other half).
+- **Scope:** server only. Wiring a React SPA against this server → hand off to `setup-react.md` after this skill finishes (same example, other half).
 - **Runtime:** Bun / Cloudflare Workers / Vercel Edge — skill still applies, skip `@hono/node-server`, use the runtime's native server. Auth handler module is identical.
 
 ## Required inputs — stop and ask if missing, they can't be inferred
@@ -153,7 +148,7 @@ pnpm tsx watch server/index.ts
 3. After the callback, browser has Authaz session cookies. Reload `curl http://localhost:3000/api/auth/me` with cookies (use DevTools to confirm no 401).
 4. `curl -X POST http://localhost:3000/api/auth/logout` → clears cookies; `/me` is 401 again.
 
-Pairing with a Vite SPA → also need the SPA-side callback page at `/auth/callback`; that's in `authaz-setup-react` — invoke it next.
+Pairing with a Vite SPA → also need the SPA-side callback page at `/auth/callback`; that's in `setup-react.md` — invoke it next.
 
 ## When something fails
 
@@ -164,7 +159,7 @@ Pairing with a Vite SPA → also need the SPA-side callback page at `/auth/callb
 | 401 even after sign-in | Browser dropped the cookie. Check `Secure`/`SameSite`: dev — both servers on localhost; prod — both HTTPS, same site. |
 | Handler 404s under `/api/auth/...` | `app.route("/api/auth", authHandler)` line missing or mounted under a different prefix. |
 
-Other failures → hand off to `authaz-troubleshoot-oauth`.
+Other failures → hand off to `troubleshoot-oauth.md`.
 
 ## Production checklist
 
@@ -188,12 +183,12 @@ When you move beyond `localhost`:
 
 ## Source of truth
 
-Code above is lifted from `authaz-sdk-js/examples/react-hono/server/`. Corresponding SPA is in `authaz-sdk-js/examples/react-hono/src/` — see `authaz-setup-react`.
+Code above is lifted from `authaz-sdk-js/examples/react-hono/server/`. Corresponding SPA is in `authaz-sdk-js/examples/react-hono/src/` — see `setup-react.md`.
 
 ## References
 
 - Real example: `authaz-sdk-js/examples/react-hono/`
 - SDK source: `authaz-sdk-js/packages/hono/src/`
-- `authaz-setup-react` — paired frontend
-- `authaz-troubleshoot-oauth` — failure diagnostics
-- `authaz-multi-tenant`, `authaz-permission-check`
+- `setup-react.md` — paired frontend
+- `troubleshoot-oauth.md` — failure diagnostics
+- `multi-tenant.md`, `permission-check.md`

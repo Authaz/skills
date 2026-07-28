@@ -1,11 +1,6 @@
----
-name: authaz-protect-route
-description: Use when gating an endpoint or page behind authentication after the initial Authaz setup is done. Adds the right framework primitive — middleware matcher, `withAuth`, `[Authorize]`, `useRequireUser` — without re-doing the install. Triggers on "protect this route", "make this page require login", "require auth", "gate endpoint".
----
-
 # Protect a route
 
-For when Authaz is already wired up and you just need to add another protected route. If Authaz isn't set up yet, run the matching `authaz-setup-*` skill first.
+For when Authaz is already wired up and you just need to add another protected route. If Authaz isn't set up yet, follow the matching `setup-*.md` recipe first.
 
 ## Step 1 — Decide where the protection goes
 
@@ -104,7 +99,7 @@ Or `[Authorize]` on a controller method. For role-based:
 .RequireAuthorization(policy => policy.RequireRole("admin"));
 ```
 
-For permission checks beyond simple role membership, see `authaz-permission-check`.
+For permission checks beyond simple role membership, see `permission-check.md`.
 
 ## Step 4 — Verify
 
@@ -125,5 +120,5 @@ If the protected route loads but auth was supposed to redirect, the matcher like
 
 ## References
 
-- `authaz-setup-{nextjs,hono,react,dotnet}` — the underlying wiring
-- `authaz-permission-check` — when "logged in" isn't enough
+- `setup-nextjs.md`, `setup-hono.md`, `setup-react.md`, `setup-dotnet.md` — the underlying wiring
+- `permission-check.md` — when "logged in" isn't enough
