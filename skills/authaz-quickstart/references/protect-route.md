@@ -46,7 +46,16 @@ export default function AdminPage() {
 }
 ```
 
-For server-side checks (server components, route handlers), call the handler's `/api/auth/me` from the request to confirm the session — that's the supported path. There's no `@authaz/next` server helper beyond the route handler today.
+For server-side checks, `@authaz/next` v2.3.0 exports helpers — don't fetch your own `/api/auth/me`:
+
+| Export | Use in |
+|---|---|
+| `requireUser({ authazDomain, apiKey, loginPath }).getOrRedirect()` | Server Component — returns the `AuthazUser` or redirects to login |
+| `requireAuth()` | Server Component — redirect only, no user object |
+| `withAuth(handler)` | Route handler — 401 when there is no session |
+| `createAuthMiddleware({ publicPaths, loginPath })` | Middleware/proxy — gate whole path trees |
+
+All four gate on the **presence** of the `authaz_access_token` cookie, which the browser drops the moment the token expires. That is correct as a guard and wrong as a session policy: without the wiring in `refresh-session.md`, every one of them turns an expired access token into a login redirect while a valid 30-day refresh token sits unused.
 
 ### Hono
 

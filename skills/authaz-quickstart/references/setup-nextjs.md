@@ -287,6 +287,7 @@ src/
 
 - Real example: `authaz-sdk-js/examples/nextjs/`
 - SDK source: `authaz-sdk-js/packages/next/src/index.tsx`
+- `refresh-session.md` — keep the session alive past the access token's lifetime (server-rendered apps refresh never until you wire it)
 - `troubleshoot-oauth.md` — failure diagnostics
 - `multi-tenant.md` — tenant scoping in business logic
 - `permission-check.md` — runtime authorization checks

@@ -1,6 +1,6 @@
 ---
 name: authaz-quickstart
-description: Use for anything involving adding or using Authaz in an application — signing up for an Authaz account, adding login to Next.js / Hono / React / ASP.NET Core, enabling a provider (password, Google, GitHub, magic link, passkey, SAML, M2M), protecting a route, checking a permission, working with tenants, calling the Management API, or debugging an OAuth failure. Routes to the right recipe in references/. Triggers on "add login", "add auth", "set up Authaz", "use authaz", "sign up to Authaz", "protect this route", "check permission", "tenant_id", "management API", "redirect_uri mismatch", "invalid_grant", "authaz callback error".
+description: Use for anything involving adding or using Authaz in an application — signing up for an Authaz account, adding login to Next.js / Hono / React / ASP.NET Core, enabling a provider (password, Google, GitHub, magic link, passkey, SAML, M2M), protecting a route, keeping a session alive with refresh tokens, checking a permission, working with tenants, calling the Management API, or debugging an OAuth failure. Routes to the right recipe in references/. Triggers on "add login", "add auth", "set up Authaz", "use authaz", "sign up to Authaz", "protect this route", "refresh token", "session expired", "logged out every hour", "check permission", "tenant_id", "management API", "redirect_uri mismatch", "invalid_grant", "authaz callback error".
 ---
 
 # Authaz — entry point
@@ -21,6 +21,7 @@ The one skill for integrating Authaz. Every recipe lives in `references/`; open 
 | Add Authaz to ASP.NET Core | `references/setup-dotnet.md` |
 | Enable a provider — password, Google, GitHub, magic link, passkey, SAML, M2M | `references/add-provider.md` |
 | Gate a route or endpoint | `references/protect-route.md` |
+| Stop users being logged out every hour, wire refresh tokens | `references/refresh-session.md` |
 | Check whether a user is allowed to do something | `references/permission-check.md` |
 | Read `tenant_id`, scope queries by tenant, B2B SaaS | `references/multi-tenant.md` |
 | Manage users / roles / tenants / invitations from a backend | `references/management-api.md` |
@@ -52,6 +53,7 @@ Check the project root in this order; stop at first match.
 |---|---|
 | Different login method (Google, magic link, …) | `references/add-provider.md` |
 | More routes to gate | `references/protect-route.md` |
+| Sessions that survive past the access token's lifetime | `references/refresh-session.md` |
 | Runtime permission checks | `references/permission-check.md` |
 | Tenant-scoped queries / B2B SaaS | `references/multi-tenant.md` |
 | OAuth round-trip failing | `references/troubleshoot-oauth.md` |
