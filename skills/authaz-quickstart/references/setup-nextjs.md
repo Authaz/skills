@@ -1,6 +1,6 @@
 # Set up Authaz in a Next.js app — single shot
 
-> **Last verified:** `@authaz/next` + `@authaz/react` v2.1.0 (2026-05-21). If the installed SDK exports don't match (function names, props, env var contract), trust the SDK source over this skill and report the drift.
+> **Always install the latest published SDK.** Do not pin to the version this skill was verified against — check the latest with `npm view @authaz/next version` and install `@latest` (Step 1). This skill was last cross-checked at `@authaz/next` + `@authaz/react` v2.3.0. If the installed SDK exports don't match (function names, props, env var contract), trust the SDK source over this skill and report the drift.
 
 Wires Authaz into a Next.js App Router app in one pass. Code below is taken verbatim from `authaz-sdk-js/examples/nextjs` — keep it that way, don't improvise function names/props/env vars from memory.
 
@@ -26,11 +26,16 @@ SDK defaults `authazDomain`/`authazIdentityDomain` to `https://auth.authaz.io` a
 
 ## Step 1 — Install
 
+Always install the **latest published** version — check it first, don't reuse an old pin:
+
 ```bash
-pnpm add @authaz/next @authaz/react
+npm view @authaz/next version                       # confirm the latest published version
+pnpm add @authaz/next@latest @authaz/react@latest
 ```
 
-(Use `npm install` / `yarn add` if the project isn't on pnpm.) The example uses Tailwind — skip those bits if the project has its own styling solution.
+(Use `npm install @authaz/next@latest @authaz/react@latest` / `yarn add` if the project isn't on pnpm.) The example uses Tailwind — skip those bits if the project has its own styling solution.
+
+After installing, confirm the resolved version and that the exports below still exist (`createAuthazHandler`, `AuthazProvider`, `useAuthaz`, `useRequireAuth`/`useRequireUser`). The SDK is the source of truth — if anything differs, follow the SDK and report the drift.
 
 ## Step 2 — Write `.env.local`
 

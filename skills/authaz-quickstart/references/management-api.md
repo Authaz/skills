@@ -1,8 +1,20 @@
 # Use the Authaz Management API
 
-Management API: `https://api.authaz.io` (hosted product) — **not** the OAuth flow at `https://auth.authaz.io`. Different hosts, auth (`X-API-Key` vs cookies/JWTs), audiences.
+Management API: `https://api.authaz.io` (hosted product) — **not** the OAuth flow at `https://auth.authaz.io`, and **not** the host the `authaz` CLI talks to. Different hosts, auth (`X-API-Key` vs cookies/JWTs), audiences.
 
-Always use the SDK — `Authaz.Sdk` (.NET) or `createAuthazClient` from `@authaz/sdk` (JS). Endpoint paths differ between SDKs (.NET: `/api/v1/...`, JS: `/v1/...`); raw HTTP requires checking SDK source. SDKs hide this divergence.
+## Which host each client uses — don't copy a URL between them
+
+| Client | Host | Who sets it |
+|---|---|---|
+| `authaz` CLI | `https://dashboard.authaz.io` + `--identity-prefix /api` (the Dashboard BFF, paths under `cli/…`) | CLI default; `--dashboard-url` overrides, self-hosted only |
+| `Authaz.Sdk` (.NET) | `https://api.authaz.io` | SDK default — leave it alone |
+| `@authaz/sdk` (JS) | `https://api.authaz.io` | **you must pass it** — the built-in default is a dead host, see below |
+
+The CLI never calls `api.authaz.io`, and the SDKs never call `dashboard.authaz.io`. A URL that worked in one is wrong in the other.
+
+Always use the SDK — `Authaz.Sdk` (.NET) or `createAuthazClient` from `@authaz/sdk` (JS); raw HTTP requires checking SDK source.
+
+**Both SDKs use the same `/api/v1/...` prefix.** (Earlier revisions of this skill claimed JS used `/v1/...` — wrong; verified in `authaz-sdk-js/packages/core/src/management/*.ts`, every path literal is `/api/v1/…`.) The `/api` is load-bearing: production routes `api.authaz.io` with `PathPrefix: /api` (`authaz/Authaz/appsettings.json:48`), so `https://api.authaz.io/v1/users` 404s while `/api/v1/users` 401s.
 
 ## Step 1 — Issue an API key
 
@@ -110,9 +122,11 @@ const authaz = createAuthazClient({
   clientId: process.env.AUTHAZ_CLIENT_ID!,
   clientSecret: process.env.AUTHAZ_CLIENT_SECRET!,
   apiKey: process.env.AUTHAZ_API_KEY, // optional; falls back to clientSecret
-  // apiDomain defaults to https://api.authaz.com; authazDomain (auth/OIDC flows) defaults to https://auth.authaz.io
-  // The SDK's built-in apiDomain default is stale (.com) relative to the hosted product's real API host (.io) —
-  // pass apiDomain explicitly rather than relying on the default.
+  // REQUIRED on the hosted product. `authazDomain` only drives OAuth; management calls resolve
+  // their base from `apiDomain` (or `baseAddress`), whose built-in default is `https://api.authaz.com`
+  // — a host that doesn't serve Authaz at all (TLS handshake fails; the string appears nowhere in the
+  // server repo). Omit this and every management call dies at connect time.
+  apiDomain: process.env.AUTHAZ_API_DOMAIN ?? "https://api.authaz.io",
 });
 
 // Org-management endpoints (users, roles, invitations) authenticate a human
@@ -242,7 +256,9 @@ For every operation wired up:
 - **Don't use `result.IsError`** in .NET — it's `result.IsSuccess` (or `result.Error != null`).
 - **Don't wrap SDK calls in `try/catch` for control flow.** Use the result type.
 - **Don't `Guid.Parse` IDs from API responses without checking the docs.** Many Authaz IDs are prefixed strings (`user_01abc…`), not GUIDs.
-- **Don't paraphrase endpoint paths from this skill into raw `curl` calls.** SDKs disagree on `/api/v1/...` vs `/v1/...`; use SDK methods.
+- **Don't drop the `/api` prefix in raw `curl` calls.** Both SDKs use `/api/v1/...`; `/v1/...` 404s. Prefer SDK methods anyway.
+- **Don't rely on `@authaz/sdk`'s default `apiDomain`.** It's `https://api.authaz.com`, which doesn't resolve to Authaz — always pass `apiDomain` (or `baseAddress`).
+- **Don't point the SDK at `dashboard.authaz.io`** because that's what `authaz whoami` uses. That's the CLI's BFF, a different surface.
 - **Don't share one API key across services.** Per-service keys keep rotation isolated.
 - **Don't treat `role.isGlobal` as "grants app-wide access."** It only means the role is centrally *defined*; the actual access scope comes from the `tenantId` passed at invite/assign time.
 - **Don't send an invitation without `tenantId` from a tenant-scoped surface.** A missing `tenantId` produces a tenantless (app-wide) grant, not an error.
@@ -259,5 +275,6 @@ For every operation wired up:
 
 - `endpoints.md` — high-level catalog of sub-clients
 - `error-codes.md` — error shape and retry guidance
+- `authaz-cli` skill — the CLI's own host/flags, for the contrast above
 - `permission-check.md` — runtime `authz.check` patterns
 - `multi-tenant.md` — tenant scoping
